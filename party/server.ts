@@ -244,15 +244,6 @@ export default class CodeMafiaServer implements Party.Server {
     }
 
     this.state.category = winner;
-    this.state.phase = "role-reveal";
-  }
-
-  private handleStartGame(
-    event: Extract<ClientGameEvent, { type: "start-game" }>,
-  ): void {
-    if (this.state.players.length === 0) {
-      return;
-    }
 
     // Ratio: ~20% of lobby are impostors (min 1, max e.g., 4 in a 20 player lobby)
     const numImpostors = Math.max(1, Math.floor(this.state.players.length * 0.2));
@@ -269,6 +260,16 @@ export default class CodeMafiaServer implements Party.Server {
       isImpostor: impostorIndices.has(index),
       isAlive: true,
     }));
+
+    this.state.phase = "role-reveal";
+  }
+
+  private handleStartGame(
+    event: Extract<ClientGameEvent, { type: "start-game" }>,
+  ): void {
+    if (this.state.players.length === 0) {
+      return;
+    }
 
     this.state.code = event.code;
     this.state.codeBlocks = event.blocks;
