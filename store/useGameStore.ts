@@ -98,7 +98,9 @@ export type ClientGameEvent =
   | { type: "end-round" }
   | { type: "next-round" }
   | { type: "tick" }
-  | { type: "reset-game" };
+  | { type: "reset-game" }
+  | { type: "update-block-status"; blockId: string; passed: boolean }
+  | { type: "update-task-status"; taskId: string; completed: boolean };
 
 export interface GameActions {
   syncState: (state: Partial<GameState>) => void;
@@ -120,6 +122,8 @@ export interface GameActions {
   nextRound: () => void;
   tick: () => void;
   resetGame: () => void;
+  updateBlockStatus: (blockId: string, passed: boolean) => void;
+  updateTaskStatus: (taskId: string, completed: boolean) => void;
 }
 
 const initialState: GameState = {
@@ -310,6 +314,16 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
 
   resetGame: () => {
     const event: ClientGameEvent = { type: "reset-game" };
+    socketManager.send(event);
+  },
+
+  updateBlockStatus: (blockId, passed) => {
+    const event: ClientGameEvent = { type: "update-block-status", blockId, passed };
+    socketManager.send(event);
+  },
+
+  updateTaskStatus: (taskId, completed) => {
+    const event: ClientGameEvent = { type: "update-task-status", taskId, completed };
     socketManager.send(event);
   },
 }));

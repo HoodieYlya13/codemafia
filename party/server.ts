@@ -111,7 +111,9 @@ type ClientGameEvent =
   | { type: "end-round" }
   | { type: "next-round" }
   | { type: "tick" }
-  | { type: "reset-game" };
+  | { type: "reset-game" }
+  | { type: "update-block-status"; blockId: string; passed: boolean }
+  | { type: "update-task-status"; taskId: string; completed: boolean };
 
 const PLAYER_COLORS = [
   "red",
@@ -270,6 +272,12 @@ export default class CodeMafiaServer implements Party.Server {
         if (this.isHostSender(sender)) {
           this.handleResetGame();
         }
+        break;
+      case "update-block-status":
+        this.handleUpdateBlockStatus(event);
+        break;
+      case "update-task-status":
+        this.handleUpdateTaskStatus(event);
         break;
       default: {
         const _exhaustive: never = event;
@@ -524,6 +532,24 @@ export default class CodeMafiaServer implements Party.Server {
 
     this.state = createInitialState(this.room.id);
     this.state.players = preservedPlayers;
+  }
+
+  private handleUpdateBlockStatus(
+    event: Extract<ClientGameEvent, { type: "update-block-status" }>
+  ): void {
+    const block = this.state.codeBlocks.find((b) => b.id === event.blockId);
+    if (block) {
+      block.passed = event.passed;
+    }
+  }
+
+  private handleUpdateTaskStatus(
+    event: Extract<ClientGameEvent, { type: "update-task-status" }>
+  ): void {
+    const task = this.state.sabotageTasks.find((t) => t.id === event.taskId);
+    if (task) {
+      task.completed = event.completed;
+    }
   }
 
   private broadcastState(): void {

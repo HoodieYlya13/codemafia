@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { motion } from "framer-motion";
 import { useGameStore } from "@/store/useGameStore";
+import { usePyodide } from "@/lib/usePyodide";
 
 export default function GameScreen() {
   const {
@@ -19,7 +20,12 @@ export default function GameScreen() {
     tick,
     callEmergencyMeeting,
     endRound,
+    updateBlockStatus,
+    updateTaskStatus,
   } = useGameStore();
+
+  const { isReady, runTest } = usePyodide();
+  const [isRunning, setIsRunning] = useState(false);
 
   const me = players.find((player) => player.id === currentPlayerId);
   const isImpostor = Boolean(me?.isImpostor);
@@ -36,6 +42,34 @@ export default function GameScreen() {
     return () => window.clearInterval(interval);
   }, [me?.isHost, tick]);
 
+  const handleRunTests = async () => {
+    if (!isReady || isRunning) return;
+    setIsRunning(true);
+
+    try {
+      // Evaluate all unit tests sequentially
+      for (const block of codeBlocks) {
+        const result = await runTest(code, block.testCase);
+        // Only broadcast if status changed to avoid spamming
+        if (block.passed !== result.success) {
+          updateBlockStatus(block.id, result.success);
+        }
+      }
+
+      // Evaluate sabotage tasks if impostor
+      if (isImpostor) {
+        for (const task of sabotageTasks) {
+          const result = await runTest(code, task.verificationTest);
+          if (task.completed !== result.success) {
+            updateTaskStatus(task.id, result.success);
+          }
+        }
+      }
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   const timeRatio =
     roundDuration <= 0
       ? 0
@@ -46,7 +80,18 @@ export default function GameScreen() {
       <div className="max-w-6xl mx-auto grid gap-4 lg:grid-cols-[1fr_320px]">
         <section className="pixel-box p-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm md:text-base text-primary">LIVE CODE</h2>
+            <div className="flex gap-4 items-center">
+              <h2 className="text-sm md:text-base text-primary">LIVE CODE</h2>
+              <button
+                type="button"
+                className="pixel-btn-secondary py-1.5 px-3 text-xs"
+                onClick={handleRunTests}
+                disabled={!isReady || isRunning}
+                style={{ opacity: !isReady || isRunning ? 0.5 : 1 }}
+              >
+                {!isReady ? "LOADING VM..." : isRunning ? "RUNNING..." : "RUN TESTS"}
+              </button>
+            </div>
             <button type="button" className="pixel-btn-danger" onClick={callEmergencyMeeting}>
               EMERGENCY
             </button>
@@ -62,7 +107,7 @@ export default function GameScreen() {
             <p className="mt-2 text-xs text-muted-foreground">TIME: {roundTimeRemaining}s</p>
           </div>
 
-          <div className="border-4 border-border overflow-hidden">
+          <div className="border-4 border-border overflow-hidden relative">
             <Editor
               height="520px"
               defaultLanguage="python"
