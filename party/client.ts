@@ -1,4 +1,5 @@
 import PartySocket from "partysocket";
+import { ClientGameEvent } from "@/lib/gameData";
 import { useGameStore } from "@/store/useGameStore";
 
 const PARTYKIT_HOST = process.env.NEXT_PUBLIC_PARTYKIT_HOST || "localhost:1999";
@@ -7,7 +8,7 @@ class SocketManager {
   private socket: PartySocket | null = null;
   private roomId: string | null = null;
   public isConnected = false;
-  private pendingMessages: any[] = [];
+  private pendingMessages: ClientGameEvent[] = [];
   private connectionPromise: Promise<void> | null = null;
 
   connect(roomId: string): Promise<void> {
@@ -68,7 +69,7 @@ class SocketManager {
     return this.connectionPromise;
   }
 
-  send(message: any) {
+  send(message: ClientGameEvent) {
     if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
     } else {

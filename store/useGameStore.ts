@@ -4,103 +4,11 @@ import { create } from "zustand";
 import { socketManager } from "@/party/client";
 import {
   CategoryId,
-  CodeBlock,
-  SabotageTask,
   getRandomLevel,
+  GamePhase,
+  GameState,
+  ClientGameEvent,
 } from "@/lib/gameData";
-
-export type GamePhase =
-  | "menu"
-  | "lobby"
-  | "category-vote"
-  | "role-reveal"
-  | "playing"
-  | "emergency-meeting"
-  | "voting"
-  | "vote-result"
-  | "round-end"
-  | "game-over";
-
-export type GameWinner = "civilians" | "impostor" | null;
-
-export interface CursorPosition {
-  lineNumber: number;
-  column: number;
-}
-
-export interface Player {
-  id: string;
-  name: string;
-  color: string;
-  isHost: boolean;
-  isReady: boolean;
-  isImpostor: boolean;
-  isAlive: boolean;
-  cursorPosition?: CursorPosition;
-}
-
-export interface ChatMessage {
-  id: string;
-  playerId: string;
-  message: string;
-}
-
-export interface Vote {
-  voterId: string;
-  targetId: string | null;
-}
-
-export interface GameState {
-  phase: GamePhase;
-  lobbyId: string | null;
-  players: Player[];
-  currentPlayerId: string | null;
-  category: CategoryId | null;
-  categoryVotes: Record<string, CategoryId>;
-  code: string;
-  codeBlocks: CodeBlock[];
-  sabotageTasks: SabotageTask[];
-  currentRound: number;
-  maxRounds: number;
-  roundTimeRemaining: number;
-  roundDuration: number;
-  emergencyMeetingCalled: boolean;
-  emergencyMeetingCallerId: string | null;
-  votes: Vote[];
-  votedOutPlayerId: string | null;
-  chatMessages: ChatMessage[];
-  winner: GameWinner;
-}
-
-export type ClientGameEvent =
-  | { type: "join"; playerId: string; playerName: string }
-  | { type: "ready"; playerId: string; ready: boolean }
-  | { type: "vote-category"; playerId: string; category: CategoryId }
-  | { type: "finalize-category" }
-  | {
-      type: "start-game";
-      code: string;
-      blocks: CodeBlock[];
-      tasks: SabotageTask[];
-    }
-  | { type: "update-code"; code: string }
-  | {
-      type: "update-cursor";
-      playerId: string;
-      lineNumber: number;
-      column: number;
-    }
-  | { type: "send-chat"; playerId: string; message: string }
-  | { type: "call-emergency"; playerId: string }
-  | { type: "transition-to-voting" }
-  | { type: "cast-vote"; playerId: string; targetId: string | null }
-  | { type: "finalize-votes" }
-  | { type: "end-round" }
-  | { type: "next-round" }
-  | { type: "tick" }
-  | { type: "reset-game" }
-  | { type: "update-block-status"; blockId: string; passed: boolean }
-  | { type: "update-task-status"; taskId: string; completed: boolean };
 
 export interface GameActions {
   syncState: (state: Partial<GameState>) => void;

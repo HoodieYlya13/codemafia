@@ -53,12 +53,13 @@ for key in list(globals().keys()):
       await pyodide.runPythonAsync(fullCode);
 
       self.postMessage({ id, type: "SUCCESS" });
-    } catch (error: any) {
+    } catch (error) {
       // Return the error message
+      const message = error instanceof Error ? error.message : String(error);
       self.postMessage({
         id,
         type: "ERROR",
-        error: error.message || String(error),
+        error: message,
       });
     }
   }

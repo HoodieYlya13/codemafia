@@ -1,119 +1,9 @@
 import type * as Party from "partykit/server";
-
-type GamePhase =
-  | "menu"
-  | "lobby"
-  | "category-vote"
-  | "role-reveal"
-  | "playing"
-  | "emergency-meeting"
-  | "voting"
-  | "vote-result"
-  | "round-end"
-  | "game-over";
-
-type CategoryId =
-  | "data-structures"
-  | "oop"
-  | "security"
-  | "frontend"
-  | "backend";
-
-type GameWinner = "civilians" | "impostor" | null;
-
-interface CursorPosition {
-  lineNumber: number;
-  column: number;
-}
-
-interface Player {
-  id: string;
-  name: string;
-  color: string;
-  isHost: boolean;
-  isReady: boolean;
-  isImpostor: boolean;
-  isAlive: boolean;
-  cursorPosition?: CursorPosition;
-}
-
-interface CodeBlock {
-  id: string;
-  code: string;
-  testCase: string;
-  expectedOutput: string;
-  passed: boolean;
-}
-
-interface SabotageTask {
-  id: string;
-  description: string;
-  lineRange: [number, number];
-  completed: boolean;
-  verificationTest: string;
-}
-
-interface Vote {
-  voterId: string;
-  targetId: string | null;
-}
-
-interface ChatMessage {
-  id: string;
-  playerId: string;
-  message: string;
-}
-
-interface GameState {
-  phase: GamePhase;
-  lobbyId: string | null;
-  players: Player[];
-  category: CategoryId | null;
-  categoryVotes: Record<string, CategoryId>;
-  code: string;
-  codeBlocks: CodeBlock[];
-  sabotageTasks: SabotageTask[];
-  currentRound: number;
-  maxRounds: number;
-  roundTimeRemaining: number;
-  roundDuration: number;
-  emergencyMeetingCalled: boolean;
-  emergencyMeetingCallerId: string | null;
-  votes: Vote[];
-  votedOutPlayerId: string | null;
-  chatMessages: ChatMessage[];
-  winner: GameWinner;
-}
-
-type ClientGameEvent =
-  | { type: "join"; playerId: string; playerName: string }
-  | { type: "ready"; playerId: string; ready: boolean }
-  | { type: "vote-category"; playerId: string; category: CategoryId }
-  | { type: "finalize-category" }
-  | {
-      type: "start-game";
-      code: string;
-      blocks: CodeBlock[];
-      tasks: SabotageTask[];
-    }
-  | { type: "update-code"; code: string }
-  | {
-      type: "update-cursor";
-      playerId: string;
-      lineNumber: number;
-      column: number;
-    }
-  | { type: "send-chat"; playerId: string; message: string }
-  | { type: "call-emergency"; playerId: string }
-  | { type: "transition-to-voting" }
-  | { type: "cast-vote"; playerId: string; targetId: string | null }
-  | { type: "finalize-votes" }
-  | { type: "end-round" }
-  | { type: "next-round" }
-  | { type: "tick" }
-  | { type: "reset-game" }
-  | { type: "update-block-status"; blockId: string; passed: boolean }
-  | { type: "update-task-status"; taskId: string; completed: boolean };
+import {
+  CategoryId,
+  GameState,
+  ClientGameEvent,
+} from "../lib/gameData";
 
 const PLAYER_COLORS = [
   "red",
@@ -134,6 +24,7 @@ function createInitialState(lobbyId: string): GameState {
     phase: "lobby",
     lobbyId,
     players: [],
+    currentPlayerId: null,
     category: null,
     categoryVotes: {},
     code: "",
