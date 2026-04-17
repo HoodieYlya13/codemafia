@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/Python-Pyodide_(Wasm)-3776AB?logo=python" alt="Pyodide" />
 </p>
 
-**Code Mafia** is a multiplayer social deduction game for developers—think _Among Us_, but you are writing Python in VS Code. Developers must pass unit tests, while a hidden "Impostor" subtly sabotages the code.
+**Code Mafia** is a multiplayer social deduction game for developers (featuring up to 20 people per lobby)—think _Among Us_, but you are writing Python in VS Code. Developers must pass unit tests, while automatically assigned hidden "Impostors" subtly sabotage the code.
 
 ## 📖 The Story: Reverse Engineering the Wayback Machine
 
@@ -40,7 +40,17 @@ Because this project runs both a Next.js frontend and a PartyKit WebSocket serve
 npm install
 ```
 
-### 2. Run the Development Server
+### 2. Environment Setup
+
+Copy the example environment file to `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
+
+For production deployment, update `NEXT_PUBLIC_PARTYKIT_HOST` in your Vercel/environment settings to point to your live PartyKit URL.
+
+### 3. Run the Development Server
 
 Use the custom `dev:all` command. This uses `concurrently` to spin up both the Next.js app on port 3000 and the PartyKit server on port 1999.
 
@@ -49,6 +59,31 @@ npm run dev:all
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser. Open a few incognito tabs or invite friends on your local network to test the multiplayer lobby!
+
+## 🚢 Deployment
+
+Code Mafia consists of two parts: the Next.js frontend and the PartyKit WebSocket server.
+
+### 1. Deploy the WebSocket Server
+
+Deploy your PartyKit server to the global edge:
+
+```bash
+npx partykit deploy
+```
+
+Once deployed, copy the domain generated (e.g., `code-mafia.username.partykit.dev`).
+
+### 2. Deploy the Frontend
+
+Deploy the Next.js app (e.g., via Vercel). In your environment settings, add:
+
+- **Variable:** `NEXT_PUBLIC_PARTYKIT_HOST`
+- **Value:** `code-mafia.username.partykit.dev` (the domain from Step 1)
+
+> [!IMPORTANT]
+> Do not include `https://` in the variable value. Just the raw domain.
+
 
 ## 🛠️ Project Structure
 

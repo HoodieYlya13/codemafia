@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { Users, Copy, Crown, Check } from "lucide-react";
 import { useGameStore } from "@/store/useGameStore";
-import { PLAYER_COLOR_MAP } from "@/lib/gameData";
+import { PLAYER_COLOR_MAP, MAX_PLAYERS } from "@/lib/gameData";
 
 export default function LobbyScreen() {
   const { lobbyId, players, currentPlayerId, setReady } = useGameStore();
@@ -60,7 +60,7 @@ export default function LobbyScreen() {
         <div className="flex items-center gap-2 mb-6 border-b-4 border-border pb-4">
           <Users className="w-5 h-5 text-primary" />
           <h2 className="font-pixel text-sm text-foreground">
-            Players ({players.length}/5)
+            Players ({players.length}/{MAX_PLAYERS})
           </h2>
         </div>
 

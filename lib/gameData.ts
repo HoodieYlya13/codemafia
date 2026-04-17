@@ -6,7 +6,23 @@ export const PLAYER_COLOR_MAP: Record<string, string> = {
   yellow: "#fdd835",
   purple: "#8e24aa",
   pink: "#ec407a",
+  cyan: "#00acc1",
+  teal: "#00897b",
+  lime: "#c0ca33",
+  brown: "#6d4c41",
+  grey: "#757575",
+  indigo: "#3949ab",
+  maroon: "#880e4f",
+  olive: "#827717",
+  navy: "#1a237e",
+  salmon: "#ff8a65",
+  mint: "#80cbc4",
+  coral: "#ff5252",
+  gold: "#ffca28",
 };
+
+export const PLAYER_COLORS = Object.keys(PLAYER_COLOR_MAP);
+export const MAX_PLAYERS = 20;
 
 export type CategoryId =
   | "data-structures"

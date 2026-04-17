@@ -3,17 +3,9 @@ import {
   CategoryId,
   GameState,
   ClientGameEvent,
+  PLAYER_COLORS,
+  MAX_PLAYERS,
 } from "../lib/gameData";
-
-const PLAYER_COLORS = [
-  "red",
-  "blue",
-  "green",
-  "orange",
-  "yellow",
-  "purple",
-  "pink",
-] as const;
 
 const DEFAULT_ROUND_DURATION_SECONDS = 45;
 const DEFAULT_MAX_ROUNDS = 4;
@@ -184,6 +176,11 @@ export default class CodeMafiaServer implements Party.Server {
     event: Extract<ClientGameEvent, { type: "join" }>,
   ): void {
     this.connectionToPlayerId.set(sender.id, event.playerId);
+    
+    if (this.state.players.length >= MAX_PLAYERS) {
+      return;
+    }
+
     if (this.state.players.some((player) => player.id === event.playerId)) {
       return;
     }
@@ -257,10 +254,19 @@ export default class CodeMafiaServer implements Party.Server {
       return;
     }
 
-    const impostorIndex = Math.floor(Math.random() * this.state.players.length);
+    // Ratio: ~20% of lobby are impostors (min 1, max e.g., 4 in a 20 player lobby)
+    const numImpostors = Math.max(1, Math.floor(this.state.players.length * 0.2));
+    const playerIndices = Array.from({ length: this.state.players.length }, (_, i) => i);
+    
+    for (let i = playerIndices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [playerIndices[i], playerIndices[j]] = [playerIndices[j], playerIndices[i]];
+    }
+    const impostorIndices = new Set(playerIndices.slice(0, numImpostors));
+
     this.state.players = this.state.players.map((player, index) => ({
       ...player,
-      isImpostor: index === impostorIndex,
+      isImpostor: impostorIndices.has(index),
       isAlive: true,
     }));
 
