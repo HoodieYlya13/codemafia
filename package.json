@@ -4,23 +4,36 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:next": "next dev",
+    "dev:party": "partykit dev",
+    "dev:all": "concurrently -n next,party -c blue,magenta \"npm run dev:next\" \"npm run dev:party\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "eslint-plugin-react-compiler": "^19.1.0-rc.2",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.8.0",
     "next": "16.2.4",
+    "partykit": "^0.0.115",
+    "partysocket": "^1.1.16",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
-    "tailwindcss": "^4",
+    "eslint-plugin-react-hooks": "^7.1.0",
+    "tailwindcss": "^4.2.2",
     "typescript": "^5"
   }
 }

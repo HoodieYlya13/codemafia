@@ -1,0 +1,4 @@
+{
+  "name": "code-mafia",
+  "main": "party/server.ts"
+}
