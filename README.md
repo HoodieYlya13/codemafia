@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<h1 align="center">🕵️‍♂️ Code Mafia: The Reverse-Engineered Revival</h1>
 
-## Getting Started
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16.2-black?logo=next.js" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-19.2-blue?logo=react" alt="React" />
+  <img src="https://img.shields.io/badge/Tailwind_v4-38B2AC?logo=tailwind-css" alt="Tailwind v4" />
+  <img src="https://img.shields.io/badge/Multiplayer-PartyKit-FF7B00" alt="PartyKit" />
+  <img src="https://img.shields.io/badge/Python-Pyodide_(Wasm)-3776AB?logo=python" alt="Pyodide" />
+</p>
 
-First, run the development server:
+**Code Mafia** is a multiplayer social deduction game for developers—think _Among Us_, but you are writing Python in VS Code. Developers must pass unit tests, while a hidden "Impostor" subtly sabotages the code.
+
+## 📖 The Story: Reverse Engineering the Wayback Machine
+
+The original repository for Code Mafia was unavailable, but the concept was too good to let fade away. **Huge shoutout to the original creators, Ahmad J. & Rayyan K., for the brilliant game design.** To bring this back to life, I tracked down the original minified production bundles (`.js` and `.css`) via the **Wayback Machine**. From those minified assets, I reverse-engineered the entire application:
+
+1. **Data Extraction:** Decrypted and extracted the core Python code blocks, test cases, and sabotage mechanics from the minified logic.
+2. **UI Reconstruction:** Translated the raw CSS variables and pixel-art classes into a modern, CSS-first Tailwind architecture.
+3. **State & Networking:** Mapped the minified state machine and recreated it using a strictly-typed Zustand store and a custom PartyKit WebSocket server.
+
+I then **completely rebuilt and optimized the architecture** from the ground up using bleeding-edge web technologies.
+
+## 🏗️ The Modern Stack
+
+This project doesn't just recreate the game; it modernizes it to run on the latest web standards:
+
+- **Next.js 16.2 & React 19:** Built with the new React Compiler enabled. Zero `useMemo` or `useCallback` boilerplate—just pure, optimized rendering.
+- **WebSockets via PartyKit:** Replaced the legacy networking with an edge-ready, real-time WebSocket server (`party/server.ts`) to handle lobby sync, role assignment, and voting.
+- **In-Browser Python Execution:** Uses **Pyodide** (WebAssembly) to compile and run Python code and unit tests entirely in the client's browser. Zero latency, zero server-cost, and absolutely zero Remote Code Execution (RCE) vulnerabilities.
+- **Styling:** Upgraded to the new CSS-first **Tailwind v4** engine, retaining the retro pixel-art aesthetic while vastly improving build performance.
+- **UI & State:** Framer Motion for fluid transitions, Monaco Editor for the IDE experience, and Zustand for predictable, syncable client state.
+
+## 🚀 Getting Started
+
+Because this project runs both a Next.js frontend and a PartyKit WebSocket server simultaneously, a custom dev script is provided.
+
+### 1. Install Dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Run the Development Server
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Use the custom `dev:all` command. This uses `concurrently` to spin up both the Next.js app on port 3000 and the PartyKit server on port 1999.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev:all
+```
 
-## Learn More
+Open [http://localhost:3000](http://localhost:3000) in your browser. Open a few incognito tabs or invite friends on your local network to test the multiplayer lobby!
 
-To learn more about Next.js, take a look at the following resources:
+## 🛠️ Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **`/app`**: Next.js 16 App Router UI.
+- **`/components`**: React 19 components (Framer Motion, Monaco Editor).
+- **`/party`**: The PartyKit WebSocket server logic (`server.ts`) and client manager (`client.ts`).
+- **`/store`**: Zustand global state management, perfectly synced with PartyKit.
+- **`/lib/gameData.ts`**: The reverse-engineered Python levels, tests, and sabotage tasks.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+<p align="center">
+  Built with 💻 and ☕.<br/>
+  <strong>Original concept by Ahmad J. & Rayyan K.</strong>
+</p>
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=sFrKx15_XEM">
+    <img src="https://img.youtube.com/vi/sFrKx15_XEM/0.jpg" alt="Watch the original concept video" width="400" />
+  </a>
+</p>

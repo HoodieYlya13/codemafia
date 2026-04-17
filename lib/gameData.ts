@@ -1,3 +1,13 @@
+export const PLAYER_COLOR_MAP: Record<string, string> = {
+  red: "#e53935",
+  blue: "#1e88e5",
+  green: "#43a047",
+  orange: "#fb8c00",
+  yellow: "#fdd835",
+  purple: "#8e24aa",
+  pink: "#ec407a",
+};
+
 export type CategoryId =
   | "data-structures"
   | "oop"

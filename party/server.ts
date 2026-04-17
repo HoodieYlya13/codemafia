@@ -431,6 +431,7 @@ export default class CodeMafiaServer implements Party.Server {
     const block = this.state.codeBlocks.find((b) => b.id === event.blockId);
     if (block) {
       block.passed = event.passed;
+      this.checkWinConditions();
     }
   }
 
@@ -440,6 +441,23 @@ export default class CodeMafiaServer implements Party.Server {
     const task = this.state.sabotageTasks.find((t) => t.id === event.taskId);
     if (task) {
       task.completed = event.completed;
+      this.checkWinConditions();
+    }
+  }
+
+  private checkWinConditions(): void {
+    if (this.state.phase !== "playing") return;
+
+    if (this.state.codeBlocks.length > 0 && this.state.codeBlocks.every((b) => b.passed)) {
+      this.state.winner = "civilians";
+      this.state.phase = "game-over";
+      return;
+    }
+
+    if (this.state.sabotageTasks.length > 0 && this.state.sabotageTasks.every((t) => t.completed)) {
+      this.state.winner = "impostor";
+      this.state.phase = "game-over";
+      return;
     }
   }
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { motion } from "framer-motion";
 import { useGameStore } from "@/store/useGameStore";
 import { usePyodide } from "@/lib/usePyodide";
+import { PLAYER_COLOR_MAP } from "@/lib/gameData";
 
 export default function GameScreen() {
   const {
@@ -27,6 +28,14 @@ export default function GameScreen() {
   const { isReady, runTest } = usePyodide();
   const [isRunning, setIsRunning] = useState(false);
 
+  // Editor refs for multiplayer cursors
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editorRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const monacoRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const decorationsCollection = useRef<any>(null);
+
   const me = players.find((player) => player.id === currentPlayerId);
   const isImpostor = Boolean(me?.isImpostor);
 
@@ -41,6 +50,31 @@ export default function GameScreen() {
 
     return () => window.clearInterval(interval);
   }, [me?.isHost, tick]);
+
+  // Effect to handle multiplayer cursors
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current) return;
+    const editor = editorRef.current;
+    
+    if (!decorationsCollection.current) {
+      decorationsCollection.current = editor.createDecorationsCollection([]);
+    }
+
+    const newDecorations = players
+      .filter((p) => p.id !== currentPlayerId && p.cursorPosition && p.isAlive)
+      .map((p) => {
+        const { lineNumber, column } = p.cursorPosition!;
+        return {
+          range: new monacoRef.current.Range(lineNumber, column, lineNumber, column),
+          options: {
+            className: `monaco-cursor monaco-cursor-${p.color}`,
+            hoverMessage: { value: p.name }
+          }
+        };
+      });
+
+    decorationsCollection.current.set(newDecorations);
+  }, [players, currentPlayerId]);
 
   const handleRunTests = async () => {
     if (!isReady || isRunning) return;
@@ -77,6 +111,34 @@ export default function GameScreen() {
 
   return (
     <div className="min-h-screen p-4">
+      <style>{`
+        ${players
+          .map(
+            (p) => `
+          .monaco-cursor-${p.color} {
+            border-left: 2px solid ${PLAYER_COLOR_MAP[p.color] || "#FFF"} !important;
+            position: relative;
+            z-index: 10;
+          }
+          .monaco-cursor-${p.color}::after {
+            content: '${p.name}';
+            position: absolute;
+            top: -18px;
+            left: -2px;
+            background: ${PLAYER_COLOR_MAP[p.color] || "#FFF"};
+            color: white;
+            font-family: "Press Start 2P", cursive, sans-serif;
+            font-size: 8px;
+            padding: 2px 4px;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0.8;
+          }
+        `
+          )
+          .join("\n")}
+      `}</style>
       <div className="max-w-6xl mx-auto grid gap-4 lg:grid-cols-[1fr_320px]">
         <section className="pixel-box p-4">
           <div className="flex items-center justify-between mb-3">
@@ -121,7 +183,9 @@ export default function GameScreen() {
                 automaticLayout: true,
               }}
               onChange={(value) => updateCode(value ?? "")}
-              onMount={(editor) => {
+              onMount={(editor, monaco) => {
+                editorRef.current = editor;
+                monacoRef.current = monaco;
                 editor.onDidChangeCursorPosition((event) => {
                   updateCursorPosition(event.position.lineNumber, event.position.column);
                 });

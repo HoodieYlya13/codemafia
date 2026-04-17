@@ -3,17 +3,7 @@
 import { motion } from "framer-motion";
 import { Users, Copy, Crown, Check } from "lucide-react";
 import { useGameStore } from "@/store/useGameStore";
-
-// Original player colors extracted from CSS mapping
-const COLOR_MAP: Record<string, string> = {
-  red: "#e53935",
-  blue: "#1e88e5",
-  green: "#43a047",
-  orange: "#fb8c00",
-  yellow: "#fdd835",
-  purple: "#8e24aa",
-  pink: "#ec407a",
-};
+import { PLAYER_COLOR_MAP } from "@/lib/gameData";
 
 export default function LobbyScreen() {
   const { lobbyId, players, currentPlayerId, setReady } = useGameStore();
@@ -86,11 +76,11 @@ export default function LobbyScreen() {
               <div className="flex items-center gap-3">
                 <div
                   className="w-6 h-6 border-2 border-border"
-                  style={{ backgroundColor: COLOR_MAP[player.color] }}
+                  style={{ backgroundColor: PLAYER_COLOR_MAP[player.color] }}
                 />
                 <span
                   className="font-pixel text-xs"
-                  style={{ color: COLOR_MAP[player.color] }}
+                  style={{ color: PLAYER_COLOR_MAP[player.color] }}
                 >
                   {player.name}{" "}
                   {player.id === currentPlayerId && (
