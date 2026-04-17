@@ -72,14 +72,14 @@ Deploy your PartyKit server to the global edge:
 npx partykit deploy
 ```
 
-Once deployed, copy the domain generated (e.g., `code-mafia.username.partykit.dev`).
+Once deployed, copy the domain generated (e.g., `codemafia.username.partykit.dev`).
 
 ### 2. Deploy the Frontend
 
 Deploy the Next.js app (e.g., via Vercel). In your environment settings, add:
 
 - **Variable:** `NEXT_PUBLIC_PARTYKIT_HOST`
-- **Value:** `code-mafia.username.partykit.dev` (the domain from Step 1)
+- **Value:** `codemafia.username.partykit.dev` (the domain from Step 1)
 
 > [!IMPORTANT]
 > Do not include `https://` in the variable value. Just the raw domain.
