@@ -5,13 +5,17 @@ import Editor from "@monaco-editor/react";
 import { motion } from "framer-motion";
 import { useGameStore } from "@/store/useGameStore";
 import { usePyodide } from "@/lib/usePyodide";
+import * as Y from "yjs";
+import { MonacoBinding } from "y-monaco";
+import YPartyKitProvider from "y-partykit/provider";
 import { PLAYER_COLOR_MAP } from "@/lib/gameData";
+
+const PARTYKIT_HOST = process.env.NEXT_PUBLIC_PARTYKIT_HOST || "localhost:1999";
 
 export default function GameScreen() {
   const {
+    lobbyId,
     code,
-    updateCode,
-    updateCursorPosition,
     codeBlocks,
     sabotageTasks,
     players,
@@ -23,14 +27,19 @@ export default function GameScreen() {
     endRound,
     updateBlockStatus,
     updateTaskStatus,
+    updateCode,
+    updateCursorPosition,
   } = useGameStore();
 
   const { isReady, runTest } = usePyodide();
   const [isRunning, setIsRunning] = useState(false);
 
-  // Editor refs for multiplayer cursors
+  // Refs for Yjs, Monaco, and custom cursors
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const providerRef = useRef<any>(null);
+  const docRef = useRef<Y.Doc | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const monacoRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,23 +48,41 @@ export default function GameScreen() {
   const me = players.find((player) => player.id === currentPlayerId);
   const isImpostor = Boolean(me?.isImpostor);
 
+  // 1. Handle Game Clock (Only for Host)
   useEffect(() => {
-    if (!me?.isHost) {
-      return;
-    }
-
+    if (!me?.isHost) return;
     const interval = window.setInterval(() => {
       tick();
     }, 1000);
-
     return () => window.clearInterval(interval);
   }, [me?.isHost, tick]);
 
-  // Effect to handle multiplayer cursors
+  // 2. Cleanup Yjs on Unmount
+  useEffect(() => {
+    return () => {
+      providerRef.current?.disconnect();
+      docRef.current?.destroy();
+    };
+  }, []);
+
+  // 3. Handle external code updates (next round)
+  useEffect(() => {
+    if (me?.isHost && docRef.current) {
+      const ytext = docRef.current.getText("monaco-sync");
+      if (code && code !== ytext.toString()) {
+        docRef.current.transact(() => {
+          ytext.delete(0, ytext.length);
+          ytext.insert(0, code);
+        });
+      }
+    }
+  }, [code, me?.isHost]);
+
+  // 4. Render multiplayer cursors via Zustand
   useEffect(() => {
     if (!editorRef.current || !monacoRef.current) return;
     const editor = editorRef.current;
-    
+
     if (!decorationsCollection.current) {
       decorationsCollection.current = editor.createDecorationsCollection([]);
     }
@@ -65,35 +92,118 @@ export default function GameScreen() {
       .map((p) => {
         const { lineNumber, column } = p.cursorPosition!;
         return {
-          range: new monacoRef.current.Range(lineNumber, column, lineNumber, column),
+          range: new monacoRef.current.Range(
+            lineNumber,
+            column,
+            lineNumber,
+            column,
+          ),
           options: {
             className: `monaco-cursor monaco-cursor-${p.color}`,
-            hoverMessage: { value: p.name }
-          }
+            hoverMessage: { value: p.name },
+          },
         };
       });
 
     decorationsCollection.current.set(newDecorations);
   }, [players, currentPlayerId]);
 
+  // 5. Initialize Yjs and Bind to Monaco
+  const handleEditorDidMount = (editor: any, monaco: any) => {
+    editorRef.current = editor;
+    monacoRef.current = monaco;
+
+    // Track local cursor movements for Zustand
+    editor.onDidChangeCursorPosition((event: any) => {
+      updateCursorPosition(event.position.lineNumber, event.position.column);
+    });
+
+    // Re-use provider if React Strict Mode double-mounts
+    if (providerRef.current && docRef.current) {
+      const ytext = docRef.current.getText("monaco-sync");
+      new MonacoBinding(
+        ytext,
+        editor.getModel(),
+        new Set([editor]),
+        // OMITTED provider.awareness -> keeps Yjs away from our cursors
+      );
+      return;
+    }
+
+    const ydoc = new Y.Doc();
+    docRef.current = ydoc;
+
+    const provider = new YPartyKitProvider(
+      PARTYKIT_HOST,
+      lobbyId || "default-room",
+      ydoc,
+      { connect: true },
+    );
+    providerRef.current = provider;
+
+    const ytext = ydoc.getText("monaco-sync");
+
+    // Bind Monaco for text sync (No awareness passed!)
+    new MonacoBinding(ytext, editor.getModel(), new Set([editor]));
+
+    let seeded = false;
+    const seed = () => {
+      if (seeded) return;
+      seeded = true;
+      if (ytext.length > 0) return;
+      const {
+        code: levelCode,
+        players: ps,
+        currentPlayerId: pid,
+      } = useGameStore.getState();
+      const isHost = ps.find((p) => p.id === pid)?.isHost ?? false;
+      if (isHost && levelCode) {
+        ytext.insert(0, levelCode);
+      }
+    };
+
+    provider.on("synced", (isSynced: boolean) => {
+      if (isSynced) seed();
+    });
+    setTimeout(seed, 1000);
+
+    let syncTimer: ReturnType<typeof setTimeout> | null = null;
+    ytext.observe(() => {
+      if (syncTimer) clearTimeout(syncTimer);
+      syncTimer = setTimeout(() => {
+        const { players: ps, currentPlayerId: pid } = useGameStore.getState();
+        const isHost = ps.find((p) => p.id === pid)?.isHost ?? false;
+        if (isHost) {
+          updateCode(ytext.toString());
+        }
+      }, 800);
+    });
+
+    // Optional: keeping this for general PartyKit presence,
+    // but Monaco won't use it anymore.
+    provider.awareness.setLocalStateField("user", {
+      name: me?.name || "Player",
+      color: me?.color || "gray",
+    });
+  };
+
   const handleRunTests = async () => {
-    if (!isReady || isRunning) return;
+    if (!isReady || isRunning || !docRef.current) return;
     setIsRunning(true);
 
+    const currentCode = docRef.current.getText("monaco-sync").toString();
+
     try {
-      // Evaluate all unit tests sequentially
       for (const block of codeBlocks) {
-        const result = await runTest(code, block.testCase);
-        // Only broadcast if status changed to avoid spamming
+        const result = await runTest(currentCode, block.testCase);
         if (block.passed !== result.success) {
           updateBlockStatus(block.id, result.success);
         }
       }
 
-      // Evaluate sabotage tasks if impostor
       if (isImpostor) {
         for (const task of sabotageTasks) {
-          const result = await runTest(code, task.verificationTest);
+          const result = await runTest(currentCode, task.verificationTest);
           if (task.completed !== result.success) {
             updateTaskStatus(task.id, result.success);
           }
@@ -135,7 +245,7 @@ export default function GameScreen() {
             z-index: 50;
             opacity: 0.8;
           }
-        `
+        `,
           )
           .join("\n")}
       `}</style>
@@ -149,12 +259,19 @@ export default function GameScreen() {
                 className="pixel-btn-secondary py-1.5 px-3 text-xs"
                 onClick={handleRunTests}
                 disabled={!isReady || isRunning}
-                style={{ opacity: !isReady || isRunning ? 0.5 : 1 }}
               >
-                {!isReady ? "LOADING VM..." : isRunning ? "RUNNING..." : "RUN TESTS"}
+                {!isReady
+                  ? "VM LOADING..."
+                  : isRunning
+                    ? "RUNNING..."
+                    : "RUN TESTS"}
               </button>
             </div>
-            <button type="button" className="pixel-btn-danger" onClick={callEmergencyMeeting}>
+            <button
+              type="button"
+              className="pixel-btn-danger"
+              onClick={callEmergencyMeeting}
+            >
               EMERGENCY
             </button>
           </div>
@@ -166,15 +283,17 @@ export default function GameScreen() {
                 style={{ width: `${timeRatio}%` }}
               />
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">TIME: {roundTimeRemaining}s</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              TIME: {roundTimeRemaining}s
+            </p>
           </div>
 
           <div className="border-4 border-border overflow-hidden relative">
             <Editor
               height="520px"
               defaultLanguage="python"
-              value={code}
               theme="vs-dark"
+              defaultValue={code}
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,
@@ -182,26 +301,24 @@ export default function GameScreen() {
                 wordWrap: "on",
                 automaticLayout: true,
               }}
-              onChange={(value) => updateCode(value ?? "")}
-              onMount={(editor, monaco) => {
-                editorRef.current = editor;
-                monacoRef.current = monaco;
-                editor.onDidChangeCursorPosition((event) => {
-                  updateCursorPosition(event.position.lineNumber, event.position.column);
-                });
-              }}
+              onMount={handleEditorDidMount}
             />
           </div>
         </section>
 
         <aside className="space-y-4">
-          <motion.div className="pixel-box p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <motion.div className="pixel-box p-4">
             <h3 className="text-sm mb-3 text-success">UNIT TESTS</h3>
             <div className="space-y-2">
               {codeBlocks.map((block) => (
-                <div key={block.id} className="border-2 border-border p-2 bg-background/60">
+                <div
+                  key={block.id}
+                  className="border-2 border-border p-2 bg-background/60"
+                >
                   <p className="text-xs">{block.code}</p>
-                  <p className={`text-xs mt-1 ${block.passed ? "text-success" : "text-muted-foreground"}`}>
+                  <p
+                    className={`text-xs mt-1 ${block.passed ? "text-success" : "text-muted-foreground"}`}
+                  >
                     {block.passed ? "PASS" : "PENDING"}
                   </p>
                 </div>
@@ -209,15 +326,24 @@ export default function GameScreen() {
             </div>
           </motion.div>
 
-          <motion.div className="pixel-box p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <h3 className={`text-sm mb-3 ${isImpostor ? "impostor-text" : "text-muted-foreground"}`}>
+          <motion.div className="pixel-box p-4">
+            <h3
+              className={`text-sm mb-3 ${isImpostor ? "impostor-text" : "text-muted-foreground"}`}
+            >
               SABOTAGE TASKS
             </h3>
             <div className="space-y-2">
               {sabotageTasks.map((task) => (
-                <div key={task.id} className="border-2 border-border p-2 bg-background/60">
-                  <p className="text-xs">{isImpostor ? task.description : "Classified objective"}</p>
-                  <p className={`text-xs mt-1 ${task.completed ? "text-success" : "text-muted-foreground"}`}>
+                <div
+                  key={task.id}
+                  className="border-2 border-border p-2 bg-background/60"
+                >
+                  <p className="text-xs">
+                    {isImpostor ? task.description : "Classified objective"}
+                  </p>
+                  <p
+                    className={`text-xs mt-1 ${task.completed ? "text-success" : "text-muted-foreground"}`}
+                  >
                     {task.completed ? "DONE" : "OPEN"}
                   </p>
                 </div>
@@ -226,7 +352,11 @@ export default function GameScreen() {
           </motion.div>
 
           {me?.isHost && (
-            <button type="button" className="pixel-btn-secondary w-full" onClick={endRound}>
+            <button
+              type="button"
+              className="pixel-btn-secondary w-full"
+              onClick={endRound}
+            >
               END ROUND
             </button>
           )}

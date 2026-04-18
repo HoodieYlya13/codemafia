@@ -5,9 +5,13 @@ import MenuScreen from "@/components/screens/MenuScreen";
 import LobbyScreen from "@/components/screens/LobbyScreen";
 import CategoryVoteScreen from "@/components/screens/CategoryVoteScreen";
 import RoleRevealScreen from "@/components/screens/RoleRevealScreen";
-import GameScreen from "@/components/screens/GameScreen";
 import VotingScreen from "@/components/screens/VotingScreen";
 import RoundEndScreen from "@/components/screens/RoundEndScreen";
+import dynamic from "next/dynamic";
+
+const GameScreen = dynamic(() => import("@/components/screens/GameScreen"), {
+  ssr: false,
+});
 
 export default function Home() {
   const phase = useGameStore((state) => state.phase);

@@ -27,7 +27,9 @@ This project doesn't just recreate the game; it modernizes it to run on the late
 
 - **Next.js 16.2 & React 19:** Built with the new React Compiler enabled. Zero `useMemo` or `useCallback` boilerplate—just pure, optimized rendering.
 - **WebSockets via PartyKit:** Replaced the legacy networking with an edge-ready, real-time WebSocket server (`party/server.ts`) multiplexing both JSON game state and binary data.
-- **Yjs CRDTs:** Collaborative coding powered by Yjs and `y-monaco`. Bypasses React state entirely for an "uncontrolled" editor experience, ensuring zero cursor-jumping and flawless remote player presence.
+- **Yjs CRDTs:** Collaborative coding powered by Yjs and `y-monaco` specifically for "uncontrolled" text synchronization. This ensures zero latency and prevents cursor jumping, while player presence (names/cursors) is synced via our custom JSON state machine for pixel-perfect UI control.
+> [!NOTE]
+> **Hybrid Sync Strategy:** The frontend uses Yjs specifically for the document data (binary sync) and Zustand + PartyKit JSON for the metadata/presence to maintain our custom pixel-art aesthetic and avoid Yjs awareness styling limitations.
 - **In-Browser Python Execution:** Uses **Pyodide** (WebAssembly) to compile and run Python code and unit tests entirely in the client's browser. Zero latency, zero server-cost, and absolutely zero Remote Code Execution (RCE) vulnerabilities.
 - **Styling:** Upgraded to the new CSS-first **Tailwind v4** engine, retaining the retro pixel-art aesthetic while vastly improving build performance.
 - **UI & State:** Framer Motion for fluid transitions, Monaco Editor for the IDE experience, and Zustand for predictable, syncable client state.
@@ -92,7 +94,7 @@ The `package.json` is optimized to protect production data while enabling smooth
 
 - **`/app`**: Next.js 16 App Router UI and page logic.
 - **`/components`**: Reusable React 19 components, including the Monaco editor integration.
-- **`/party`**: The PartyKit WebSocket server logic (`server.ts`) acting as a Traffic Cop for Yjs and game state.
+- **`/party`**: The PartyKit WebSocket server logic (`server.ts`) acting as a Multiplexed Traffic Cop that simultaneously handles binary Yjs CRDT updates and JSON game events.
 - **`/store`**: Zustand global state management, synced in real-time.
 - **`/lib/gameData.ts`**: The reverse-engineered Python levels, tests, and sabotage tasks.
 
