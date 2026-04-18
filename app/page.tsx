@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import { useGameStore } from "@/store/useGameStore";
+import { socketManager } from "@/party/client";
+import { useHasHydrated } from "@/hooks/useHasHydrated";
 import MenuScreen from "@/components/screens/MenuScreen";
 import LobbyScreen from "@/components/screens/LobbyScreen";
 import CategoryVoteScreen from "@/components/screens/CategoryVoteScreen";
@@ -15,6 +18,19 @@ const GameScreen = dynamic(() => import("@/components/screens/GameScreen"), {
 
 export default function Home() {
   const phase = useGameStore((state) => state.phase);
+  const lobbyId = useGameStore((state) => state.lobbyId);
+  const hasHydrated = useHasHydrated();
+
+  // Handle auto-reconnection on refresh
+  useEffect(() => {
+    if (hasHydrated && lobbyId && !socketManager.isConnected) {
+      console.log("Auto-reconnecting to lobby:", lobbyId);
+      socketManager.connect(lobbyId);
+    }
+  }, [hasHydrated, lobbyId]);
+
+  // If not hydrated yet, we show a simple loading state or the background to avoid mismatch
+  if (!hasHydrated) return <main className="min-h-screen sky-bg" />;
 
   return (
     <main className="min-h-screen sky-bg relative overflow-hidden">
