@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -n next,party -c blue,magenta \"npm run dev:next\" \"npm run dev:party\"",
     "dev:next": "next dev",
     "dev:party": "partykit dev",
-    "dev:all": "concurrently -n next,party -c blue,magenta \"npm run dev:next\" \"npm run dev:party\"",
-    "build": "next build",
+    "party:staging": "npx partykit deploy --name codemafia-staging --var ENV_TYPE=staging",
+    "build:dev": "npm run party:staging && next build",
+    "build": "npx partykit deploy && next build",
     "start": "next start",
     "lint": "eslint"
   },

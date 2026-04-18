@@ -18,7 +18,7 @@ export default function Home() {
       <div className="absolute top-10 left-10 w-32 h-16 bg-white/80" />
       <div className="absolute top-32 right-20 w-24 h-12 bg-white/70" />
       <div className="absolute bottom-0 left-0 right-0 h-8 bg-secondary/50" />
-      
+
       <div className="relative z-10 h-full">
         {phase === "menu" && <MenuScreen />}
         {phase === "lobby" && <LobbyScreen />}
