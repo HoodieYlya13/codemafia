@@ -45,6 +45,8 @@ class SocketManager {
       });
 
       this.socket.addEventListener("message", (event) => {
+        if (typeof event.data !== "string") return;
+
         try {
           const data = JSON.parse(event.data);
           if (data.type === "sync" && data.state) {

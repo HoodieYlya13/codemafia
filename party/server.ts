@@ -1,4 +1,5 @@
 import type * as Party from "partykit/server";
+import { onConnect as yjsOnConnect } from "y-partykit";
 import {
   CategoryId,
   GameState,
@@ -51,7 +52,10 @@ export default class CodeMafiaServer implements Party.Server {
     this.state = createInitialState(room.id);
   }
 
-  onConnect(connection: Party.Connection): void {
+  async onConnect(connection: Party.Connection): Promise<void> {
+    // Hand off binary Yjs sync frames to y-partykit first.
+    await yjsOnConnect(connection, this.room);
+    // Then send our existing game-state sync to the new client.
     connection.send(JSON.stringify({ type: "sync", state: this.state }));
   }
 
@@ -85,7 +89,10 @@ export default class CodeMafiaServer implements Party.Server {
     this.broadcastState();
   }
 
-  onMessage(message: string, sender: Party.Connection): void {
+  onMessage(message: string | ArrayBuffer, sender: Party.Connection): void {
+    // Binary frames are Yjs CRDT updates — y-partykit handles them via onConnect.
+    if (typeof message !== "string") return;
+
     const event = safeParseEvent(message);
     if (!event) {
       return;
