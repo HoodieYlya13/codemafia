@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Editor from "@monaco-editor/react";
+import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 import { motion } from "framer-motion";
 import { useGameStore } from "@/store/useGameStore";
 import { usePyodide } from "@/lib/usePyodide";
@@ -35,15 +36,11 @@ export default function GameScreen() {
   const [isRunning, setIsRunning] = useState(false);
 
   // Refs for Yjs, Monaco, and custom cursors
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const editorRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const providerRef = useRef<any>(null);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const providerRef = useRef<YPartyKitProvider | null>(null);
   const docRef = useRef<Y.Doc | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const monacoRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const decorationsCollection = useRef<any>(null);
+  const monacoRef = useRef<Monaco | null>(null);
+  const decorationsCollection = useRef<editor.IEditorDecorationsCollection | null>(null);
 
   const me = players.find((player) => player.id === currentPlayerId);
   const isImpostor = Boolean(me?.isImpostor);
@@ -109,12 +106,15 @@ export default function GameScreen() {
   }, [players, currentPlayerId]);
 
   // 5. Initialize Yjs and Bind to Monaco
-  const handleEditorDidMount = (editor: any, monaco: any) => {
+  const handleEditorDidMount: OnMount = (editor, monaco) => {
+    const model = editor.getModel();
+    if (!model) return;
+
     editorRef.current = editor;
     monacoRef.current = monaco;
 
     // Track local cursor movements for Zustand
-    editor.onDidChangeCursorPosition((event: any) => {
+    editor.onDidChangeCursorPosition((event) => {
       updateCursorPosition(event.position.lineNumber, event.position.column);
     });
 
@@ -123,7 +123,7 @@ export default function GameScreen() {
       const ytext = docRef.current.getText("monaco-sync");
       new MonacoBinding(
         ytext,
-        editor.getModel(),
+        model,
         new Set([editor]),
         // OMITTED provider.awareness -> keeps Yjs away from our cursors
       );
@@ -144,7 +144,7 @@ export default function GameScreen() {
     const ytext = ydoc.getText("monaco-sync");
 
     // Bind Monaco for text sync (No awareness passed!)
-    new MonacoBinding(ytext, editor.getModel(), new Set([editor]));
+    new MonacoBinding(ytext, model, new Set([editor]));
 
     let seeded = false;
     const seed = () => {
