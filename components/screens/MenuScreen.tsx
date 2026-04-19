@@ -29,13 +29,13 @@ export default function MenuScreen() {
         className="text-center animate-pixel-float"
       >
         <h1 className="text-4xl md:text-6xl font-pixel text-primary logo-glow tracking-wider">
-          CODE
+          VIBE
         </h1>
         <h1 className="text-4xl md:text-6xl font-pixel text-accent logo-glow tracking-wider mt-2">
-          MAFIA
+          CODER
         </h1>
         <p className="mt-4 text-sm font-pixel text-foreground/70">
-          Sabotage or Survive
+          Force Push or Fire
         </p>
       </motion.div>
 
@@ -65,7 +65,7 @@ export default function MenuScreen() {
             disabled={!playerName.trim()}
             className="pixel-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            CREATE NEW GAME
+            START NEW STARTUP
           </button>
 
           <div className="flex gap-2">
@@ -82,7 +82,7 @@ export default function MenuScreen() {
               disabled={!playerName.trim() || lobbyCode.length !== 6}
               className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              JOIN
+              ONBOARD
             </button>
           </div>
         </div>

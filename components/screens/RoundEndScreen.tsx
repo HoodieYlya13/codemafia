@@ -20,14 +20,14 @@ export default function RoundEndScreen() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
-          <h2 className="text-3xl text-warning mb-4">ROUND COMPLETE</h2>
+          <h2 className="text-3xl text-warning mb-4">SPRINT RETROSPECTIVE</h2>
           <p className="text-sm text-muted-foreground mb-2">
-            Round {currentRound} ended.
+            Sprint {currentRound} finished with questionable code quality.
           </p>
           <p className="text-xs text-muted-foreground mb-6">
             {finalRoundReached
-              ? "Final round reached. Host can resolve the game."
-              : `Prepare for round ${currentRound + 1}.`}
+              ? "Final sprint reached. Lead Architect, decide our fate."
+              : `Prepare for sprint ${currentRound + 1}.`}
           </p>
 
           <div className="flex justify-center gap-4">
@@ -37,7 +37,7 @@ export default function RoundEndScreen() {
               disabled={!isHost}
               className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isHost ? "START NEXT ROUND" : "HOST STARTS NEXT ROUND"}
+              {isHost ? "START NEXT SPRINT" : "AWAITING LEAD ARCHITECT"}
             </button>
             <button
               onClick={leaveLobby}

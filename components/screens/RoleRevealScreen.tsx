@@ -27,12 +27,12 @@ export default function RoleRevealScreen() {
       >
         <p className="text-xs text-muted-foreground mb-4">YOUR ROLE</p>
         <h1 className={`text-4xl md:text-5xl mb-4 ${me?.isImpostor ? "impostor-text" : "civilian-text"}`}>
-          {me?.isImpostor ? "IMPOSTOR" : "CIVILIAN"}
+          {me?.isImpostor ? "VIBE CODER" : "10X ENGINEER"}
         </h1>
         <p className="text-xs text-muted-foreground leading-relaxed">
           {me?.isImpostor
-            ? "Sabotage code subtly without getting caught."
-            : "Pass all tests and expose the impostor in meetings."}
+            ? "Just be yourself and break the prod without being caught."
+            : "Repair the prod and fire the Vibe Coders during the meetings."}
         </p>
       </motion.div>
     </div>

@@ -86,7 +86,7 @@ export const useGameStore = create<GameStateWithHydration & GameActions>()(
               newPlayer.id !== currentPlayerId &&
               !oldPlayers.find((p) => p.id === newPlayer.id)
             ) {
-              toast.info(`${newPlayer.name} joined the lobby`);
+              toast.info(`${newPlayer.name} onboarded to the startup`);
             }
           });
 
@@ -96,7 +96,7 @@ export const useGameStore = create<GameStateWithHydration & GameActions>()(
               oldPlayer.id !== currentPlayerId &&
               !newPlayers.find((p) => p.id === oldPlayer.id)
             ) {
-              toast.info(`${oldPlayer.name} left the lobby`);
+              toast.info(`${oldPlayer.name} quit for a better offer`);
             }
           });
         }
@@ -114,7 +114,7 @@ export const useGameStore = create<GameStateWithHydration & GameActions>()(
           const event: ClientGameEvent = { type: "join", playerId, playerName };
           socketManager.send(event);
         } catch (error) {
-          console.error("Failed to connect to PartyKit room:", error);
+          console.error("Server room is on fire:", error);
           set({ ...initialState });
         }
       },
@@ -127,7 +127,7 @@ export const useGameStore = create<GameStateWithHydration & GameActions>()(
           const event: ClientGameEvent = { type: "join", playerId, playerName };
           socketManager.send(event);
         } catch (error) {
-          console.error("Failed to connect to PartyKit room:", error);
+          console.error("Server room is on fire:", error);
           set({ ...initialState });
         }
       },

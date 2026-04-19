@@ -260,7 +260,7 @@ export default function GameScreen() {
         {/* LEFT COLUMN: TASKS */}
         <aside className="space-y-4 flex flex-col order-2 lg:order-1">
           <motion.div className="pixel-box p-4 shrink-0">
-            <h3 className="text-sm mb-3 text-success">UNIT TESTS</h3>
+            <h3 className="text-sm mb-3 text-success">CI/CD PIPELINE</h3>
             <div className="space-y-2">
               {codeBlocks.map((block) => (
                 <div
@@ -271,7 +271,7 @@ export default function GameScreen() {
                   <p
                     className={`text-xs mt-1 ${block.passed ? "text-success" : "text-muted-foreground"}`}
                   >
-                    {block.passed ? "PASS" : "PENDING"}
+                    {block.passed ? "STABLE" : "DEGRADED"}
                   </p>
                 </div>
               ))}
@@ -282,7 +282,7 @@ export default function GameScreen() {
             <h3
               className={`text-sm mb-3 ${isImpostor ? "impostor-text" : "text-muted-foreground"}`}
             >
-              SABOTAGE TASKS
+              VIBE MISSIONS
             </h3>
             <div className="space-y-2">
               {sabotageTasks.map((task) => (
@@ -291,12 +291,12 @@ export default function GameScreen() {
                   className="border-2 border-border p-2 bg-background/60"
                 >
                   <p className="text-xs">
-                    {isImpostor ? task.description : "Classified objective"}
+                    {isImpostor ? task.description : "Obfuscated requirements"}
                   </p>
                   <p
                     className={`text-xs mt-1 ${task.completed ? "text-success" : "text-muted-foreground"}`}
                   >
-                    {task.completed ? "DONE" : "OPEN"}
+                    {task.completed ? "MERGED" : "DRAFT"}
                   </p>
                 </div>
               ))}
@@ -309,7 +309,7 @@ export default function GameScreen() {
               className="pixel-btn-secondary w-full shrink-0"
               onClick={endRound}
             >
-              END ROUND
+              SHIP CHANGES
             </button>
           )}
         </aside>
@@ -318,7 +318,7 @@ export default function GameScreen() {
         <section className="pixel-box p-4 order-1 lg:order-2">
           <div className="flex items-center justify-between mb-3">
             <div className="flex gap-4 items-center">
-              <h2 className="text-sm md:text-base text-primary">LIVE CODE</h2>
+              <h2 className="text-sm md:text-base text-primary">PROD MAIN</h2>
               <button
                 type="button"
                 className="pixel-btn-secondary py-1.5 px-3 text-xs"
@@ -326,10 +326,12 @@ export default function GameScreen() {
                 disabled={!isReady || isRunning}
               >
                 {!isReady
-                  ? "VM LOADING..."
+                  ? "INSTALLING DEPS..."
                   : isRunning
-                    ? "RUNNING..."
-                    : "RUN TESTS"}
+                    ? "PUSHING..."
+                    : isImpostor
+                      ? "git push origin main --force"
+                      : "DEPLOY TO PROD"}
               </button>
             </div>
             <button
@@ -337,7 +339,7 @@ export default function GameScreen() {
               className="pixel-btn-danger"
               onClick={callEmergencyMeeting}
             >
-              EMERGENCY
+              INCIDENT
             </button>
           </div>
 

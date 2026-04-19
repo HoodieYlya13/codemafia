@@ -1,4 +1,4 @@
-<h1 align="center">🕵️‍♂️ Code Mafia: The Reverse-Engineered Revival</h1>
+<h1 align="center">🕵️‍♂️ Vibe Coder: The Reverse-Engineered Revival</h1>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-16.2-black?logo=next.js" alt="Next.js" />
@@ -9,17 +9,17 @@
   <img src="https://img.shields.io/badge/Python-Pyodide_(Wasm)-3776AB?logo=python" alt="Pyodide" />
 </p>
 
-**Code Mafia** is a multiplayer social deduction game for developers (featuring up to 20 people per lobby)—think _Among Us_, but you are writing Python in VS Code. Developers must pass unit tests, while automatically assigned hidden "Impostors" subtly sabotage the code.
+**Vibe Coder** is a multiplayer social deduction game for developers (featuring up to 20 people per lobby)—think _Among Us_, but you are writing Python in VS Code. Developers must pass unit tests, while automatically assigned hidden "Impostors" subtly sabotage the code.
 
 ## 📖 The Story: Reverse Engineering the Wayback Machine
 
-The original repository for Code Mafia was unavailable, but the concept was too good to let fade away. **Huge shoutout to the original creators, Ahmad J. & Rayyan K., for the brilliant game design.** To bring this back to life, I tracked down the original minified production bundles (`.js` and `.css`) via the **Wayback Machine**. From those minified assets, I reverse-engineered the entire application:
+The original repository for Vibe Coder (originally Code Mafia) was unavailable, but the concept was too good to let fade away. **Huge shoutout to the original creators, Ahmad J. & Rayyan K., for the brilliant game design.** To bring this back to life, I tracked down the original minified production bundles (`.js` and `.css`) via the **Wayback Machine**. From those minified assets, I reverse-engineered the entire application:
 
 1. **Data Extraction:** Decrypted and extracted the core Python code blocks, test cases, and sabotage mechanics from the minified logic.
 2. **UI Reconstruction:** Translated the raw CSS variables and pixel-art classes into a modern, CSS-first Tailwind architecture.
 3. **State & Networking:** Mapped the minified state machine and recreated it using a strictly-typed Zustand store and a custom PartyKit WebSocket server.
 
-I then **completely rebuilt and optimized the architecture** from the ground up using bleeding-edge web technologies.
+I then **completely rebuilt and optimized the architecture** from the ground up using bleeding-edge web technologies (and added humor).
 
 ## 🏗️ The Modern Stack
 
@@ -28,8 +28,8 @@ This project doesn't just recreate the game; it modernizes it to run on the late
 - **Next.js 16.2 & React 19:** Built with the new React Compiler enabled. Zero `useMemo` or `useCallback` boilerplate—just pure, optimized rendering.
 - **WebSockets via PartyKit:** Replaced the legacy networking with a stable, edge-ready WebSocket server (`party/server.ts`) multiplexing both JSON game state and Yjs updates over a single unified protocol.
 - **Yjs CRDTs:** Collaborative coding powered by Yjs and `y-monaco`. To bypass Cloudflare binary truncation crashes, we implemented a custom **Multiplexed JSON Provider** that wraps Yjs updates into our main WebSocket stream.
-> [!NOTE]
-> **Hybrid Sync Strategy:** The frontend uses Yjs for document delta synchronization (multiplexed via JSON) and Zustand + PartyKit for high-level game state and presence.
+  > [!NOTE]
+  > **Hybrid Sync Strategy:** The frontend uses Yjs for document delta synchronization (multiplexed via JSON) and Zustand + PartyKit for high-level game state and presence.
 - **In-Browser Python Execution:** Uses **Pyodide** (WebAssembly) to compile and run Python code and unit tests entirely in the client's browser. Zero latency, zero server-cost, and absolutely zero Remote Code Execution (RCE) vulnerabilities.
 - **Styling:** Upgraded to the new CSS-first **Tailwind v4** engine, retaining the retro pixel-art aesthetic while vastly improving build performance.
 - **UI & State:** Framer Motion for fluid transitions, Monaco Editor for the IDE experience, and Zustand for predictable, syncable client state.
@@ -67,7 +67,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser. Open a few 
 
 ## 🚢 Deployment & CI/CD
 
-Code Mafia uses a streamlined, single-repository deployment architecture. The backend is pushed to **PartyKit**, and the frontend is hosted on **Vercel**.
+Vibe Coder uses a streamlined, single-repository deployment architecture. The backend is pushed to **PartyKit**, and the frontend is hosted on **Vercel**.
 
 ### 1. Vercel Configuration
 
@@ -78,7 +78,7 @@ To allow Vercel to automatically deploy your PartyKit backend during its build p
   npx partykit token generate
   ```
 - **Add to Vercel**: Save this token in your Vercel Project Environment Variables as `PARTYKIT_TOKEN`.
-- **Backend URL**: Add your production backend URL as `NEXT_PUBLIC_PARTYKIT_HOST` (e.g., `codemafia.username.partykit.dev`).
+- **Backend URL**: Add your production backend URL as `NEXT_PUBLIC_PARTYKIT_HOST` (e.g., `vibecoder.username.partykit.dev`).
   > [!IMPORTANT]
   > Do not include `https://` in the variable value. Just the raw domain.
 

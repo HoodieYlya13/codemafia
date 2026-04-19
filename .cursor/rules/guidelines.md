@@ -15,7 +15,7 @@ You are an expert in Next.js 16, React 19, and modern real-time web architecture
 - **Network Boundary (Proxy):** Strictly use `proxy.ts` (not `middleware.ts`) for rewrites/redirects. Do NOT put business logic here.
 - **Data Fetching & State:** Use `use()` to unwrap promises or read Context. Use `useActionState` and `useOptimistic` for client-side forms/mutations.
 
-# Project Specifics: "Code Mafia"
+# Project Specifics: "Vibe Coder"
 
 - **"Use Client" Boundaries:** Any component using Monaco Editor, PartySocket, Zustand, or Framer Motion MUST be marked with `"use client"`.
 - **State Management (Zustand):** Keep the global game state strictly typed. Ensure actions (like `updateCode` or `castVote`) sync seamlessly with PartyKit.

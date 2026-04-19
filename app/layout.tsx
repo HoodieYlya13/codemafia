@@ -21,8 +21,8 @@ const pressStart2P = Press_Start_2P({
 });
 
 export const metadata: Metadata = {
-  title: "Code Mafia",
-  description: "Who is the imposter?",
+  title: "Vibe Coder",
+  description: "Who broke prod?",
 };
 
 import ToastProvider from "@/components/ToastProvider";

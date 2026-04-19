@@ -32,10 +32,10 @@ export default function CategoryVoteScreen() {
           animate={{ opacity: 1, y: 0 }}
         >
           <h2 className="text-xl md:text-2xl text-primary logo-glow text-center mb-3">
-            VOTE CATEGORY
+            CHOOSE TECHNOLOGY STACK
           </h2>
           <p className="text-xs text-muted-foreground text-center mb-6">
-            Pick the code challenge type for this round.
+            Pick the stack for our next failing MVP.
           </p>
 
           <div className="grid gap-3 md:grid-cols-2">
@@ -64,7 +64,7 @@ export default function CategoryVoteScreen() {
               disabled={!isHost}
               className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isHost ? "LOCK CATEGORY" : "HOST LOCKS CATEGORY"}
+              {isHost ? "COMMIT STACK" : "AWAITING LEAD ARCHITECT"}
             </button>
             <button
               onClick={leaveLobby}

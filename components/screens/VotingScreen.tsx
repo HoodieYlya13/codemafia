@@ -32,9 +32,9 @@ export default function VotingScreen() {
     if (phase === "emergency-meeting") {
       return (
         <motion.div className="pixel-box w-full max-w-2xl p-8 text-center animate-emergency-pulse">
-          <h2 className="text-3xl text-destructive mb-3">EMERGENCY MEETING</h2>
+          <h2 className="text-3xl text-destructive mb-3">SUDDEN STAND-UP</h2>
           <p className="text-xs text-muted-foreground mb-6">
-            Discuss quickly and move to voting.
+            Discuss the incident and identify the junior who broke prod.
           </p>
           <button
             type="button"
@@ -42,7 +42,7 @@ export default function VotingScreen() {
             disabled={!isHost}
             className="pixel-btn-danger disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isHost ? "START VOTING" : "HOST STARTS VOTING"}
+            {isHost ? "COMMENCE PEER REVIEW" : "LEAD ARCHITECT STARTS REVIEW"}
           </button>
         </motion.div>
       );
@@ -55,11 +55,11 @@ export default function VotingScreen() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
-          <h2 className="text-2xl text-primary mb-4">VOTE RESULT</h2>
+          <h2 className="text-2xl text-primary mb-4">PEER REVIEW OUTCOME</h2>
           <p className="text-sm mb-6">
             {ejectedPlayer
-              ? `${ejectedPlayer.name} was ejected.`
-              : "No one was ejected."}
+              ? `${ejectedPlayer.name} was fired for breaking prod.`
+              : "No one was fired (yet)."}
           </p>
           <button
             type="button"
@@ -67,7 +67,7 @@ export default function VotingScreen() {
             onClick={nextRound}
             disabled={!isHost}
           >
-            {isHost ? "NEXT ROUND" : "HOST CONTINUES"}
+            {isHost ? "CONTINUE SPRINT" : "AWAITING LEAD ARCHITECT"}
           </button>
         </motion.div>
       );
@@ -81,7 +81,7 @@ export default function VotingScreen() {
           animate={{ opacity: 1 }}
         >
           <h2 className="text-3xl mb-4 logo-glow">
-            {winner === "civilians" ? "CIVILIANS WIN" : "IMPOSTOR WINS"}
+            {winner === "civilians" ? "PROD IS SAVED! (10X Engineers win)" : "PROD IS ON FIRE! (Vibe Coders win)"}
           </h2>
           <button
             type="button"
@@ -101,7 +101,7 @@ export default function VotingScreen() {
         animate={{ opacity: 1 }}
       >
         <h2 className="text-2xl text-primary text-center mb-6">
-          CAST YOUR VOTE
+          IDENTIFY THE VIBE CODER
         </h2>
         <div className="space-y-3">
           {players
@@ -125,7 +125,7 @@ export default function VotingScreen() {
             className="pixel-btn-ghost"
             onClick={() => castVote(null)}
           >
-            SKIP
+            LGTM (SKIP)
           </button>
           <button
             type="button"
@@ -133,7 +133,7 @@ export default function VotingScreen() {
             onClick={finalizeVotes}
             disabled={!isHost}
           >
-            {isHost ? "FINALIZE VOTES" : "HOST FINALIZES"}
+            {isHost ? "COMMIT CHANGES" : "LEAD ARCHITECT FINALIZES"}
           </button>
         </div>
       </motion.div>

@@ -6,7 +6,7 @@
     "dev": "concurrently -n next,party -c blue,magenta \"npm run dev:next\" \"npm run dev:party\"",
     "dev:next": "next dev",
     "dev:party": "partykit dev",
-    "party:staging": "npx partykit deploy --name codemafia-staging --var ENV_TYPE=staging",
+    "party:staging": "npx partykit deploy --name vibecoder-staging --var ENV_TYPE=staging",
     "build:dev": "npm run party:staging && next build",
     "build": "npx partykit deploy && next build",
     "start": "next start",

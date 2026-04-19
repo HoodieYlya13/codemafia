@@ -27,7 +27,7 @@ export default function LobbyScreen() {
           animate={{ y: 0, opacity: 1 }}
         >
           <h1 className="text-2xl md:text-3xl font-pixel text-primary pixel-text-shadow">
-            LOBBY
+            THE OPEN SPACE
           </h1>
         </motion.div>
 
@@ -38,7 +38,7 @@ export default function LobbyScreen() {
         >
           <div>
             <p className="text-xs font-pixel text-muted-foreground mb-1">
-              Lobby Code:
+              Commit Hash:
             </p>
             <p className="text-xl font-pixel text-primary tracking-widest">
               {lobbyId}
@@ -62,7 +62,7 @@ export default function LobbyScreen() {
           <div className="flex items-center gap-2 mb-6 border-b-4 border-border pb-4">
             <Users className="w-5 h-5 text-primary" />
             <h2 className="font-pixel text-sm text-foreground">
-              Players ({players.length}/{MAX_PLAYERS})
+              Contributors ({players.length}/{MAX_PLAYERS})
             </h2>
           </div>
 
@@ -102,7 +102,7 @@ export default function LobbyScreen() {
             ))}
             {players.length === 0 && (
               <p className="font-pixel text-xs text-center text-muted-foreground py-4">
-                Waiting for players...
+                Awaiting talent...
               </p>
             )}
           </div>
@@ -118,7 +118,7 @@ export default function LobbyScreen() {
             onClick={() => setReady(!me?.isReady)}
             className={`${me?.isReady ? "pixel-btn-ghost" : "pixel-btn-secondary"} text-sm px-8 py-4`}
           >
-            {me?.isReady ? "NOT READY" : "READY!"}
+            {me?.isReady ? "BLOCKED (PENDING REVIEW)" : "READY TO PUSH"}
           </button>
           <button
             onClick={leaveLobby}
@@ -131,7 +131,7 @@ export default function LobbyScreen() {
 
         {players.length >= 2 && players.every((p) => p.isReady) && (
           <p className="mt-4 font-pixel text-xs text-success animate-pulse">
-            Starting soon...
+            Deploying to staging...
           </p>
         )}
       </div>

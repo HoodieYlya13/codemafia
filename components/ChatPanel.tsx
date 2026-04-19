@@ -26,13 +26,13 @@ export default function ChatPanel() {
   return (
     <div className="flex flex-col h-full bg-card border-4 border-border shadow-[inset_-4px_-4px_hsl(var(--border)/0.3)]">
       <div className="p-3 border-b-4 border-border bg-background">
-        <h3 className="text-sm text-primary">COMMUNICATIONS</h3>
+        <h3 className="text-sm text-primary">SLACK CHANNEL (#general)</h3>
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[300px]">
         {chatMessages.length === 0 && (
           <p className="text-xs text-muted-foreground text-center pt-8">
-            No messages yet...
+            Channel silent. Everyone is coding (or sleeping).
           </p>
         )}
         {chatMessages.map((msg) => {
@@ -73,7 +73,7 @@ export default function ChatPanel() {
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Type message..."
+          placeholder="Blame someone..."
           className="pixel-input flex-1 px-2 py-2 shadow-none!"
           maxLength={100}
         />
@@ -82,7 +82,7 @@ export default function ChatPanel() {
           disabled={!inputValue.trim()}
           className="pixel-btn-primary px-3 py-1 text-xs"
         >
-          SEND
+          POST
         </button>
       </form>
     </div>
