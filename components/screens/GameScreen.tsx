@@ -15,6 +15,7 @@ import ChatPanel from "@/components/ChatPanel";
 export default function GameScreen() {
   const {
     lobbyId,
+    code,
     codeBlocks,
     sabotageTasks,
     players,
@@ -32,6 +33,8 @@ export default function GameScreen() {
 
   const { isReady, runTest } = usePyodide();
   const [isRunning, setIsRunning] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
+  const [editorIsEmpty, setEditorIsEmpty] = useState(true);
 
   // Refs for Yjs, Monaco, and custom cursors
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -157,8 +160,10 @@ export default function GameScreen() {
     }
 
     // 4. Sync text back to Zustand for tests/tasks
+    // Also track whether the editor is visually empty (to show git pull button)
     let syncTimer: ReturnType<typeof setTimeout> | null = null;
     const observer = () => {
+      setEditorIsEmpty(ytext.length === 0);
       if (syncTimer) clearTimeout(syncTimer);
       syncTimer = setTimeout(() => {
         const currentState = useGameStore.getState();
@@ -182,6 +187,19 @@ export default function GameScreen() {
       docRef.current = null;
     };
   }, [editorInstance, updateCode]);
+
+  const handleGitPull = () => {
+    const storeCode = useGameStore.getState().code;
+    if (!docRef.current || !storeCode) return;
+    setIsPulling(true);
+    const ydoc = docRef.current;
+    const ytext = ydoc.getText("monaco-sync");
+    ydoc.transact(() => {
+      if (ytext.length > 0) ytext.delete(0, ytext.length);
+      ytext.insert(0, storeCode);
+    });
+    setTimeout(() => setIsPulling(false), 600);
+  };
 
   const handleRunTests = async () => {
     if (!isReady || isRunning || !docRef.current) return;
@@ -317,7 +335,7 @@ export default function GameScreen() {
         {/* MIDDLE COLUMN: EDITOR */}
         <section className="pixel-box p-4 order-1 lg:order-2">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex gap-4 items-center">
+            <div className="flex gap-4 items-center flex-wrap gap-y-2">
               <h2 className="text-sm md:text-base text-primary">PROD MAIN</h2>
               <button
                 type="button"
@@ -335,6 +353,17 @@ export default function GameScreen() {
                         ? "git push origin main --force"
                         : "DEPLOY TO PROD"}
               </button>
+              {me?.isAlive && editorIsEmpty && (
+                <button
+                  type="button"
+                  className="pixel-btn-ghost py-1.5 px-3 text-xs text-warning border-warning animate-pulse"
+                  onClick={handleGitPull}
+                  disabled={isPulling || !code}
+                  title="Your editor is empty. Pull the latest code from the host."
+                >
+                  {isPulling ? "PULLING..." : "git pull origin main"}
+                </button>
+              )}
             </div>
               <button
                 type="button"
