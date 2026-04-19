@@ -58,7 +58,7 @@ export default function VotingScreen() {
           <h2 className="text-2xl text-primary mb-4">PEER REVIEW OUTCOME</h2>
           <p className="text-sm mb-6">
             {ejectedPlayer
-              ? `${ejectedPlayer.name} was fired for breaking prod.`
+              ? `${ejectedPlayer.name} was fired. They were ${ejectedPlayer.isImpostor ? "a Vibe Coder!" : "just a 10x Engineer."}`
               : "No one was fired (yet)."}
           </p>
           <button
@@ -81,7 +81,9 @@ export default function VotingScreen() {
           animate={{ opacity: 1 }}
         >
           <h2 className="text-3xl mb-4 logo-glow">
-            {winner === "civilians" ? "PROD IS SAVED! (10X Engineers win)" : "PROD IS ON FIRE! (Vibe Coders win)"}
+            {winner === "civilians"
+              ? "PROD IS SAVED! (10X Engineers win)"
+              : "PROD IS ON FIRE! (Vibe Coders win)"}
           </h2>
           <button
             type="button"
@@ -110,8 +112,9 @@ export default function VotingScreen() {
               <button
                 key={player.id}
                 type="button"
-                className={`pixel-btn w-full justify-between ${myVote === player.id ? "pixel-btn-primary" : "pixel-btn-ghost"}`}
+                className={`pixel-btn w-full justify-between ${myVote === player.id ? "pixel-btn-primary" : "pixel-btn-ghost"} disabled:opacity-50 disabled:cursor-not-allowed`}
                 onClick={() => castVote(player.id)}
+                disabled={!me?.isAlive}
               >
                 {player.name}{" "}
                 {votes.filter((vote) => vote.targetId === player.id).length}{" "}
@@ -122,20 +125,26 @@ export default function VotingScreen() {
         <div className="mt-4 flex gap-2 justify-center">
           <button
             type="button"
-            className="pixel-btn-ghost"
+            className="pixel-btn-ghost disabled:opacity-50"
             onClick={() => castVote(null)}
+            disabled={!me?.isAlive}
           >
             LGTM (SKIP)
           </button>
           <button
             type="button"
-            className="pixel-btn-secondary"
+            className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={finalizeVotes}
             disabled={!isHost}
           >
-            {isHost ? "COMMIT CHANGES" : "LEAD ARCHITECT FINALIZES"}
+            {isHost ? "COMMIT CHANGES" : "LEAD TECH FINALIZES"}
           </button>
         </div>
+        {!me?.isAlive && (
+          <p className="mt-4 text-xs text-destructive text-center animate-pulse">
+            YOU HAVE BEEN FIRED AND CANNOT PARTICIPATE IN PEER REVIEWS.
+          </p>
+        )}
       </motion.div>
     );
   };

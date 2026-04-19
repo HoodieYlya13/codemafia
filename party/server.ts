@@ -65,6 +65,22 @@ export default class CodeMafiaServer implements Party.Server {
       return;
     }
 
+    // Restrict interaction for fired players
+    const isAlive = this.isAliveSender(sender);
+    const interactiveActions = [
+      "update-code",
+      "send-chat",
+      "call-emergency",
+      "cast-vote",
+      "update-block-status",
+      "update-task-status",
+      "yjs-update",
+    ];
+
+    if (!isAlive && interactiveActions.includes(event.type)) {
+      return;
+    }
+
     switch (event.type) {
       case "join":
         this.handleJoin(sender, event);
@@ -217,6 +233,16 @@ export default class CodeMafiaServer implements Party.Server {
     return this.state.players.some(
       (player) => player.id === playerId && player.isHost,
     );
+  }
+
+  private isAliveSender(sender: Party.Connection): boolean {
+    const playerId = this.connectionToPlayerId.get(sender.id);
+    if (!playerId) {
+      // Players not yet joined (during lobby) are considered "alive"/able to interact
+      return true;
+    }
+    const player = this.state.players.find((p) => p.id === playerId);
+    return player ? player.isAlive : true;
   }
 
   private handleReady(

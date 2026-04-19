@@ -6,7 +6,7 @@ import { useGameStore } from "@/store/useGameStore";
 import ChatPanel from "@/components/ChatPanel";
 
 export default function RoundEndScreen() {
-  const { players, currentPlayerId, currentRound, maxRounds, nextRound, leaveLobby } =
+  const { players, currentPlayerId, currentRound, maxRounds, nextRound, leaveLobby, callEmergencyMeeting } =
     useGameStore();
   const me = players.find((player) => player.id === currentPlayerId);
   const isHost = Boolean(me?.isHost);
@@ -37,7 +37,15 @@ export default function RoundEndScreen() {
               disabled={!isHost}
               className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isHost ? "START NEXT SPRINT" : "AWAITING LEAD ARCHITECT"}
+              {isHost ? "START NEXT SPRINT" : "AWAITING LEAD TECH"}
+            </button>
+            <button
+              type="button"
+              onClick={callEmergencyMeeting}
+              disabled={!me?.isAlive}
+              className="pixel-btn-danger disabled:opacity-50"
+            >
+              SUDDEN STAND-UP
             </button>
             <button
               onClick={leaveLobby}

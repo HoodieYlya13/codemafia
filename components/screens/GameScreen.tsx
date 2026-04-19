@@ -323,24 +323,27 @@ export default function GameScreen() {
                 type="button"
                 className="pixel-btn-secondary py-1.5 px-3 text-xs"
                 onClick={handleRunTests}
-                disabled={!isReady || isRunning}
+                disabled={!isReady || isRunning || !me?.isAlive}
               >
-                {!isReady
-                  ? "INSTALLING DEPS..."
-                  : isRunning
-                    ? "PUSHING..."
-                    : isImpostor
-                      ? "git push origin main --force"
-                      : "DEPLOY TO PROD"}
+                {!me?.isAlive
+                  ? "SPECTATING"
+                  : !isReady
+                    ? "INSTALLING DEPS..."
+                    : isRunning
+                      ? "PUSHING..."
+                      : isImpostor
+                        ? "git push origin main --force"
+                        : "DEPLOY TO PROD"}
               </button>
             </div>
-            <button
-              type="button"
-              className="pixel-btn-danger"
-              onClick={callEmergencyMeeting}
-            >
-              INCIDENT
-            </button>
+              <button
+                type="button"
+                className="pixel-btn-danger disabled:opacity-50"
+                onClick={callEmergencyMeeting}
+                disabled={!me?.isAlive}
+              >
+                INCIDENT
+              </button>
           </div>
 
           <div className="mb-4">
@@ -370,9 +373,18 @@ export default function GameScreen() {
                 lineNumbers: "on",
                 wordWrap: "on",
                 automaticLayout: true,
+                readOnly: !me?.isAlive,
               }}
               onMount={handleEditorDidMount}
             />
+            {!me?.isAlive && (
+              <div className="absolute inset-0 bg-background/20 backdrop-blur-[2px] pointer-events-none flex flex-col items-center justify-center border-4 border-destructive/50 z-50">
+                <div className="pixel-box bg-background/90 p-4 animate-pulse">
+                  <p className="text-destructive font-pixel text-lg">SPECTATOR MODE</p>
+                  <p className="text-xs text-muted-foreground mt-2">You were fired. Watch and learn.</p>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

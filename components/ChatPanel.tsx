@@ -7,6 +7,7 @@ import { PLAYER_COLOR_MAP } from "@/lib/gameData";
 export default function ChatPanel() {
   const { chatMessages, players, currentPlayerId, sendChatMessage } =
     useGameStore();
+  const me = players.find((p) => p.id === currentPlayerId);
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -73,14 +74,15 @@ export default function ChatPanel() {
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Blame someone..."
-          className="pixel-input flex-1 px-2 py-2 shadow-none!"
+          placeholder={me?.isAlive ? "Blame someone..." : "You are offboarded. No more slack for you."}
+          className="pixel-input flex-1 px-2 py-2 shadow-none! disabled:opacity-50"
           maxLength={100}
+          disabled={!me?.isAlive}
         />
         <button
           type="submit"
-          disabled={!inputValue.trim()}
-          className="pixel-btn-primary px-3 py-1 text-xs"
+          disabled={!inputValue.trim() || !me?.isAlive}
+          className="pixel-btn-primary px-3 py-1 text-xs disabled:opacity-50"
         >
           POST
         </button>
