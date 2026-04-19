@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { socketManager } from "@/party/client";
+import { toast } from "@/store/useToastStore";
 import {
   CategoryId,
   getRandomLevel,
@@ -34,6 +35,7 @@ export interface GameActions {
   resetGame: () => void;
   updateBlockStatus: (blockId: string, passed: boolean) => void;
   updateTaskStatus: (taskId: string, completed: boolean) => void;
+  leaveLobby: () => void;
 }
 
 const initialState: Omit<GameState, "_hasHydrated"> = {
@@ -73,7 +75,32 @@ export const useGameStore = create<GameStateWithHydration & GameActions>()(
       },
 
       syncState: (newState) => {
-        const currentPlayerId = get().currentPlayerId;
+        const { players: oldPlayers, currentPlayerId } = get();
+        const newPlayers = newState.players || [];
+
+        // Only detect changes if we already had a baseline (to avoid toasting everything on first sync)
+        if (oldPlayers.length > 0 && newPlayers.length > 0) {
+          // Detect joins
+          newPlayers.forEach((newPlayer) => {
+            if (
+              newPlayer.id !== currentPlayerId &&
+              !oldPlayers.find((p) => p.id === newPlayer.id)
+            ) {
+              toast.info(`${newPlayer.name} joined the lobby`);
+            }
+          });
+
+          // Detect leaves
+          oldPlayers.forEach((oldPlayer) => {
+            if (
+              oldPlayer.id !== currentPlayerId &&
+              !newPlayers.find((p) => p.id === oldPlayer.id)
+            ) {
+              toast.info(`${oldPlayer.name} left the lobby`);
+            }
+          });
+        }
+
         set({ ...newState, currentPlayerId });
       },
 
@@ -246,6 +273,10 @@ export const useGameStore = create<GameStateWithHydration & GameActions>()(
       updateTaskStatus: (taskId, completed) => {
         const event: ClientGameEvent = { type: "update-task-status", taskId, completed };
         socketManager.send(event);
+      },
+      leaveLobby: () => {
+        socketManager.disconnect();
+        set({ ...initialState, _hasHydrated: true });
       },
     }),
     {

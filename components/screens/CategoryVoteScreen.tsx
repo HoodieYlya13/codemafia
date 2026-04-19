@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { LogOut } from "lucide-react";
 import { useGameStore } from "@/store/useGameStore";
 import { CATEGORY_NAMES, type CategoryId } from "@/lib/gameData";
 import ChatPanel from "@/components/ChatPanel";
@@ -14,6 +15,7 @@ export default function CategoryVoteScreen() {
     voteCategory,
     finalizeCategoryVote,
     players,
+    leaveLobby,
   } = useGameStore();
 
   const myVote = currentPlayerId ? categoryVotes[currentPlayerId] : undefined;
@@ -55,7 +57,7 @@ export default function CategoryVoteScreen() {
             })}
           </div>
 
-          <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex justify-center gap-4">
             <button
               type="button"
               onClick={finalizeCategoryVote}
@@ -63,6 +65,13 @@ export default function CategoryVoteScreen() {
               className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isHost ? "LOCK CATEGORY" : "HOST LOCKS CATEGORY"}
+            </button>
+            <button
+              onClick={leaveLobby}
+              className="pixel-btn-ghost text-sm px-6 py-2 flex items-center gap-2 text-destructive"
+            >
+              <LogOut className="w-4 h-4" />
+              LEAVE
             </button>
           </div>
         </motion.div>

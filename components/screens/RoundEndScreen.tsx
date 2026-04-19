@@ -1,11 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { LogOut } from "lucide-react";
 import { useGameStore } from "@/store/useGameStore";
 import ChatPanel from "@/components/ChatPanel";
 
 export default function RoundEndScreen() {
-  const { players, currentPlayerId, currentRound, maxRounds, nextRound } =
+  const { players, currentPlayerId, currentRound, maxRounds, nextRound, leaveLobby } =
     useGameStore();
   const me = players.find((player) => player.id === currentPlayerId);
   const isHost = Boolean(me?.isHost);
@@ -29,14 +30,23 @@ export default function RoundEndScreen() {
               : `Prepare for round ${currentRound + 1}.`}
           </p>
 
-          <button
-            type="button"
-            onClick={nextRound}
-            disabled={!isHost}
-            className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isHost ? "START NEXT ROUND" : "HOST STARTS NEXT ROUND"}
-          </button>
+          <div className="flex justify-center gap-4">
+            <button
+              type="button"
+              onClick={nextRound}
+              disabled={!isHost}
+              className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isHost ? "START NEXT ROUND" : "HOST STARTS NEXT ROUND"}
+            </button>
+            <button
+              onClick={leaveLobby}
+              className="pixel-btn-ghost text-sm px-6 py-2 flex items-center gap-2 text-destructive"
+            >
+              <LogOut className="w-4 h-4" />
+              LEAVE
+            </button>
+          </div>
         </motion.div>
       </div>
 

@@ -1,6 +1,7 @@
 import PartySocket from "partysocket";
 import { ClientGameEvent } from "@/lib/gameData";
 import { useGameStore } from "@/store/useGameStore";
+import { toast } from "@/store/useToastStore";
 
 const PARTYKIT_HOST = process.env.NEXT_PUBLIC_PARTYKIT_HOST || "localhost:1999";
 
@@ -36,7 +37,11 @@ class SocketManager {
 
       this.socket.addEventListener("open", () => {
         console.log("Connected to room:", roomId);
+        const wasReconnecting = this.isConnected === false && this.roomId === roomId;
         this.isConnected = true;
+        if (wasReconnecting) {
+          toast.success("Reconnected to server!");
+        }
         this.pendingMessages.forEach((msg) =>
           this.socket?.send(JSON.stringify(msg)),
         );
@@ -65,6 +70,7 @@ class SocketManager {
       this.socket.addEventListener("close", () => {
         console.log("Disconnected from room:", roomId);
         this.isConnected = false;
+        toast.warning("Server connection lost. Trying to reconnect...");
       });
 
       this.socket.addEventListener("error", (err) => {

@@ -1,14 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Users, Copy, Crown, Check } from "lucide-react";
+import { Users, Copy, Crown, Check, LogOut } from "lucide-react";
 import { useGameStore } from "@/store/useGameStore";
 import { PLAYER_COLOR_MAP, MAX_PLAYERS } from "@/lib/gameData";
 import ChatPanel from "@/components/ChatPanel";
 import { toast } from "@/store/useToastStore";
 
 export default function LobbyScreen() {
-  const { lobbyId, players, currentPlayerId, setReady } = useGameStore();
+  const { lobbyId, players, currentPlayerId, setReady, leaveLobby } = useGameStore();
   const me = players.find((p) => p.id === currentPlayerId);
 
   const copyToClipboard = () => {
@@ -109,6 +109,7 @@ export default function LobbyScreen() {
         </motion.div>
 
         <motion.div
+          className="flex gap-4 mt-8"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.4 }}
@@ -118,6 +119,13 @@ export default function LobbyScreen() {
             className={`${me?.isReady ? "pixel-btn-ghost" : "pixel-btn-secondary"} text-sm px-8 py-4`}
           >
             {me?.isReady ? "NOT READY" : "READY!"}
+          </button>
+          <button
+            onClick={leaveLobby}
+            className="pixel-btn-ghost text-sm px-8 py-4 flex items-center gap-2 text-destructive"
+          >
+            <LogOut className="w-4 h-4" />
+            LEAVE
           </button>
         </motion.div>
 
