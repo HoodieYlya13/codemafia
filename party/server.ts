@@ -8,8 +8,18 @@ import {
 } from "../lib/gameData";
 
 const DEFAULT_ROUND_DURATION_SECONDS = 45;
-const DEFAULT_MAX_ROUNDS = 4;
 const MIN_PLAYERS_TO_START = 2;
+
+/** Scale rounds with lobby size so bigger groups get a fairer game.
+ *  2–4 → 4 | 5–8 → 5 | 9–12 → 6 | 13–16 → 7 | 17–20 → 8
+ */
+function computeMaxRounds(playerCount: number): number {
+  if (playerCount <= 4)  return 4;
+  if (playerCount <= 8)  return 5;
+  if (playerCount <= 12) return 6;
+  if (playerCount <= 16) return 7;
+  return 8;
+}
 
 function createInitialState(lobbyId: string): GameState {
   return {
@@ -23,7 +33,7 @@ function createInitialState(lobbyId: string): GameState {
     codeBlocks: [],
     sabotageTasks: [],
     currentRound: 1,
-    maxRounds: DEFAULT_MAX_ROUNDS,
+    maxRounds: 4, // overridden dynamically in handleFinalizeCategory
     roundTimeRemaining: DEFAULT_ROUND_DURATION_SECONDS,
     roundDuration: DEFAULT_ROUND_DURATION_SECONDS,
     emergencyMeetingCalled: false,
@@ -284,6 +294,9 @@ export default class CodeMafiaServer implements Party.Server {
     }
 
     this.state.category = winner;
+
+    // Scale rounds based on final player count (locked in at this point)
+    this.state.maxRounds = computeMaxRounds(this.state.players.length);
 
     // Ratio: ~20% of lobby are impostors (min 1, max e.g., 4 in a 20 player lobby)
     const numImpostors = Math.max(

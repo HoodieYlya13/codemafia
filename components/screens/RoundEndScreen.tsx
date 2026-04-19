@@ -26,7 +26,7 @@ export default function RoundEndScreen() {
           </p>
           <p className="text-xs text-muted-foreground mb-6">
             {finalRoundReached
-              ? "Final sprint reached. Lead Architect, decide our fate."
+              ? "Final sprint reached. Lead Tech, decide our fate."
               : `Prepare for sprint ${currentRound + 1}.`}
           </p>
 

@@ -42,7 +42,7 @@ export default function VotingScreen() {
             disabled={!isHost}
             className="pixel-btn-danger disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isHost ? "COMMENCE PEER REVIEW" : "LEAD ARCHITECT STARTS REVIEW"}
+            {isHost ? "COMMENCE PEER REVIEW" : "LEAD TECH STARTS REVIEW"}
           </button>
         </motion.div>
       );
@@ -67,7 +67,7 @@ export default function VotingScreen() {
             onClick={nextRound}
             disabled={!isHost}
           >
-            {isHost ? "CONTINUE SPRINT" : "AWAITING LEAD ARCHITECT"}
+            {isHost ? "CONTINUE SPRINT" : "AWAITING LEAD TECH"}
           </button>
         </motion.div>
       );

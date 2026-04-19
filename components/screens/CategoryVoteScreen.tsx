@@ -64,7 +64,7 @@ export default function CategoryVoteScreen() {
               disabled={!isHost}
               className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isHost ? "COMMIT STACK" : "AWAITING LEAD ARCHITECT"}
+              {isHost ? "COMMIT STACK" : "AWAITING LEAD TECH"}
             </button>
             <button
               onClick={leaveLobby}
