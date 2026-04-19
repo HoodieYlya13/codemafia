@@ -11,7 +11,8 @@ export default function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Only scroll if we are not in a focus-intensive component or if it's desirable
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [chatMessages]);
 
   const handleSend = (e: React.FormEvent) => {

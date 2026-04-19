@@ -10,6 +10,7 @@ import * as Y from "yjs";
 import { MonacoBinding } from "y-monaco";
 import { PLAYER_COLOR_MAP } from "@/lib/gameData";
 import { socketManager } from "@/party/client";
+import ChatPanel from "@/components/ChatPanel";
 
 export default function GameScreen() {
   const {
@@ -59,7 +60,7 @@ export default function GameScreen() {
     return () => {
       if (docRef.current) {
         docRef.current.destroy();
-        docRef.current = null; // <-- The Magic Fix
+        docRef.current = null;
       }
     };
   }, []);
@@ -129,7 +130,7 @@ export default function GameScreen() {
       if (origin !== "remote" && isMounted) {
         socketManager.send({
           type: "yjs-update",
-          update: Array.from(update), // Convert binary to a safe JSON array
+          update: Array.from(update),
         });
       }
     };
@@ -143,14 +144,13 @@ export default function GameScreen() {
     };
     window.addEventListener("yjs-remote-update", handleRemoteUpdate);
 
-    // 3. Host instantly seeds the default code (No network waiting needed!)
+    // 3. Host instantly seeds the default code
     const state = useGameStore.getState();
     const isHost = state.players.find(
       (p) => p.id === state.currentPlayerId,
     )?.isHost;
 
     if (isHost && ytext.length === 0 && state.code) {
-      console.log("🌱 [Yjs] Host seeding initial code directly...");
       ydoc.transact(() => {
         ytext.insert(0, state.code);
       });
@@ -173,7 +173,6 @@ export default function GameScreen() {
     ytext.observe(observer);
 
     return () => {
-      console.log("🧹 [Yjs] Unmounting editor...");
       isMounted = false;
       window.removeEventListener("yjs-remote-update", handleRemoteUpdate);
       ydoc.off("update", handleLocalUpdate);
@@ -216,9 +215,6 @@ export default function GameScreen() {
       ? 0
       : Math.max(0, Math.min(100, (roundTimeRemaining / roundDuration) * 100));
 
-  // --- CRITICAL FIX: DO NOT RENDER UNTIL LOBBY IS KNOWN ---
-  // This prevents the client from mounting Monaco and permanently
-  // attaching Yjs to a "default-room" before Zustand has finished hydrating.
   if (!lobbyId) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -259,8 +255,67 @@ export default function GameScreen() {
           )
           .join("\n")}
       `}</style>
-      <div className="max-w-6xl mx-auto grid gap-4 lg:grid-cols-[1fr_320px]">
-        <section className="pixel-box p-4">
+
+      <div className="max-w-[1800px] mx-auto grid gap-4 lg:grid-cols-[300px_1fr] xl:grid-cols-[300px_1fr_350px]">
+        {/* LEFT COLUMN: TASKS */}
+        <aside className="space-y-4 flex flex-col order-2 lg:order-1">
+          <motion.div className="pixel-box p-4 shrink-0">
+            <h3 className="text-sm mb-3 text-success">UNIT TESTS</h3>
+            <div className="space-y-2">
+              {codeBlocks.map((block) => (
+                <div
+                  key={block.id}
+                  className="border-2 border-border p-2 bg-background/60"
+                >
+                  <p className="text-xs">{block.code}</p>
+                  <p
+                    className={`text-xs mt-1 ${block.passed ? "text-success" : "text-muted-foreground"}`}
+                  >
+                    {block.passed ? "PASS" : "PENDING"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          <motion.div className="pixel-box p-4 shrink-0">
+            <h3
+              className={`text-sm mb-3 ${isImpostor ? "impostor-text" : "text-muted-foreground"}`}
+            >
+              SABOTAGE TASKS
+            </h3>
+            <div className="space-y-2">
+              {sabotageTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="border-2 border-border p-2 bg-background/60"
+                >
+                  <p className="text-xs">
+                    {isImpostor ? task.description : "Classified objective"}
+                  </p>
+                  <p
+                    className={`text-xs mt-1 ${task.completed ? "text-success" : "text-muted-foreground"}`}
+                  >
+                    {task.completed ? "DONE" : "OPEN"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          {me?.isHost && (
+            <button
+              type="button"
+              className="pixel-btn-secondary w-full shrink-0"
+              onClick={endRound}
+            >
+              END ROUND
+            </button>
+          )}
+        </aside>
+
+        {/* MIDDLE COLUMN: EDITOR */}
+        <section className="pixel-box p-4 order-1 lg:order-2">
           <div className="flex items-center justify-between mb-3">
             <div className="flex gap-4 items-center">
               <h2 className="text-sm md:text-base text-primary">LIVE CODE</h2>
@@ -298,13 +353,12 @@ export default function GameScreen() {
             </p>
           </div>
 
-          {/* CRITICAL FIX 2: key={lobbyId} guarantees Yjs drops and remounts if the lobby changes */}
           <div
             key={lobbyId}
             className="border-4 border-border overflow-hidden relative"
           >
             <Editor
-              height="520px"
+              height="600px"
               defaultLanguage="python"
               theme="vs-dark"
               defaultValue=""
@@ -320,60 +374,9 @@ export default function GameScreen() {
           </div>
         </section>
 
-        <aside className="space-y-4">
-          <motion.div className="pixel-box p-4">
-            <h3 className="text-sm mb-3 text-success">UNIT TESTS</h3>
-            <div className="space-y-2">
-              {codeBlocks.map((block) => (
-                <div
-                  key={block.id}
-                  className="border-2 border-border p-2 bg-background/60"
-                >
-                  <p className="text-xs">{block.code}</p>
-                  <p
-                    className={`text-xs mt-1 ${block.passed ? "text-success" : "text-muted-foreground"}`}
-                  >
-                    {block.passed ? "PASS" : "PENDING"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          <motion.div className="pixel-box p-4">
-            <h3
-              className={`text-sm mb-3 ${isImpostor ? "impostor-text" : "text-muted-foreground"}`}
-            >
-              SABOTAGE TASKS
-            </h3>
-            <div className="space-y-2">
-              {sabotageTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="border-2 border-border p-2 bg-background/60"
-                >
-                  <p className="text-xs">
-                    {isImpostor ? task.description : "Classified objective"}
-                  </p>
-                  <p
-                    className={`text-xs mt-1 ${task.completed ? "text-success" : "text-muted-foreground"}`}
-                  >
-                    {task.completed ? "DONE" : "OPEN"}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {me?.isHost && (
-            <button
-              type="button"
-              className="pixel-btn-secondary w-full"
-              onClick={endRound}
-            >
-              END ROUND
-            </button>
-          )}
+        {/* RIGHT COLUMN: CHAT */}
+        <aside className="hidden xl:flex flex-col order-3 h-full max-h-[700px]">
+          <ChatPanel />
         </aside>
       </div>
     </div>
