@@ -106,6 +106,22 @@ export default function GameScreen() {
     setEditorInstance(editor);
     monacoRef.current = monaco;
 
+    // Disable shortcuts that cause huge collaborative conflicts:
+    // Undo (Ctrl+Z / Cmd+Z)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => {});
+    // Redo (Ctrl+Shift+Z / Cmd+Shift+Z)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ, () => {});
+    // Redo (Ctrl+Y — Windows style)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyY, () => {});
+    // Select All (Ctrl+A / Cmd+A)
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyA, () => {});
+    // Find & Replace (Ctrl+H / Cmd+H) — mass-replaces across the entire shared doc
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyH, () => {});
+    // Select all occurrences (Ctrl+Shift+L / Cmd+Shift+L) — select all then type = mass delete
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyL, () => {});
+    // Cut (Ctrl+X / Cmd+X) — silent mass-delete if large selection exists
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyX, () => {});
+
     // Track local cursor movements
     editor.onDidChangeCursorPosition((event) => {
       updateCursorPosition(event.position.lineNumber, event.position.column);

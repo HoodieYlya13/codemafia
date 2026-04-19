@@ -288,7 +288,7 @@ export default class CodeMafiaServer implements Party.Server {
     // Ratio: ~20% of lobby are impostors (min 1, max e.g., 4 in a 20 player lobby)
     const numImpostors = Math.max(
       1,
-      Math.floor(this.state.players.length * 0.2),
+      Math.round(this.state.players.length * 0.2),
     );
     const playerIndices = Array.from(
       { length: this.state.players.length },
