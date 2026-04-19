@@ -51,6 +51,11 @@ class SocketManager {
           const data = JSON.parse(event.data);
           if (data.type === "sync" && data.state) {
             useGameStore.getState().syncState(data.state);
+          } else if (data.type === "yjs-update") {
+            // 🔥 Catch the remote keystrokes and send them to Monaco
+            window.dispatchEvent(
+              new CustomEvent("yjs-remote-update", { detail: data.update }),
+            );
           }
         } catch (err) {
           console.error("Failed to parse message:", err);

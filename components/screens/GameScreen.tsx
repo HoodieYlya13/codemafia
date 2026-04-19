@@ -8,15 +8,12 @@ import { useGameStore } from "@/store/useGameStore";
 import { usePyodide } from "@/lib/usePyodide";
 import * as Y from "yjs";
 import { MonacoBinding } from "y-monaco";
-import YPartyKitProvider from "y-partykit/provider";
 import { PLAYER_COLOR_MAP } from "@/lib/gameData";
-
-const PARTYKIT_HOST = process.env.NEXT_PUBLIC_PARTYKIT_HOST || "localhost:1999";
+import { socketManager } from "@/party/client";
 
 export default function GameScreen() {
   const {
     lobbyId,
-    code,
     codeBlocks,
     sabotageTasks,
     players,
@@ -37,10 +34,13 @@ export default function GameScreen() {
 
   // Refs for Yjs, Monaco, and custom cursors
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
-  const providerRef = useRef<YPartyKitProvider | null>(null);
   const docRef = useRef<Y.Doc | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
-  const decorationsCollection = useRef<editor.IEditorDecorationsCollection | null>(null);
+  const decorationsCollection =
+    useRef<editor.IEditorDecorationsCollection | null>(null);
+
+  const [editorInstance, setEditorInstance] =
+    useState<editor.IStandaloneCodeEditor | null>(null);
 
   const me = players.find((player) => player.id === currentPlayerId);
   const isImpostor = Boolean(me?.isImpostor);
@@ -57,23 +57,12 @@ export default function GameScreen() {
   // 2. Cleanup Yjs on Unmount
   useEffect(() => {
     return () => {
-      providerRef.current?.disconnect();
-      docRef.current?.destroy();
+      if (docRef.current) {
+        docRef.current.destroy();
+        docRef.current = null; // <-- The Magic Fix
+      }
     };
   }, []);
-
-  // 3. Handle external code updates (next round)
-  useEffect(() => {
-    if (me?.isHost && docRef.current) {
-      const ytext = docRef.current.getText("monaco-sync");
-      if (code && code !== ytext.toString()) {
-        docRef.current.transact(() => {
-          ytext.delete(0, ytext.length);
-          ytext.insert(0, code);
-        });
-      }
-    }
-  }, [code, me?.isHost]);
 
   // 4. Render multiplayer cursors via Zustand
   useEffect(() => {
@@ -107,85 +96,93 @@ export default function GameScreen() {
 
   // 5. Initialize Yjs and Bind to Monaco
   const handleEditorDidMount: OnMount = (editor, monaco) => {
-    const model = editor.getModel();
-    if (!model) return;
+    if (!lobbyId) return;
 
     editorRef.current = editor;
+    setEditorInstance(editor);
     monacoRef.current = monaco;
 
-    // Track local cursor movements for Zustand
+    // Track local cursor movements
     editor.onDidChangeCursorPosition((event) => {
       updateCursorPosition(event.position.lineNumber, event.position.column);
     });
+  };
 
-    // Re-use provider if React Strict Mode double-mounts
-    if (providerRef.current && docRef.current) {
-      const ytext = docRef.current.getText("monaco-sync");
-      new MonacoBinding(
-        ytext,
-        model,
-        new Set([editor]),
-        // OMITTED provider.awareness -> keeps Yjs away from our cursors
-      );
-      return;
-    }
+  // Initialize Yjs and Bind to Monaco
+  useEffect(() => {
+    if (!editorInstance) return;
+
+    let isMounted = true;
 
     const ydoc = new Y.Doc();
     docRef.current = ydoc;
-
-    const provider = new YPartyKitProvider(
-      PARTYKIT_HOST,
-      lobbyId || "default-room",
-      ydoc,
-      { connect: true },
-    );
-    providerRef.current = provider;
-
     const ytext = ydoc.getText("monaco-sync");
 
-    // Bind Monaco for text sync (No awareness passed!)
-    new MonacoBinding(ytext, model, new Set([editor]));
+    const binding = new MonacoBinding(
+      ytext,
+      editorInstance.getModel()!,
+      new Set([editorInstance]),
+    );
 
-    let seeded = false;
-    const seed = () => {
-      if (seeded) return;
-      seeded = true;
-      if (ytext.length > 0) return;
-      const {
-        code: levelCode,
-        players: ps,
-        currentPlayerId: pid,
-      } = useGameStore.getState();
-      const isHost = ps.find((p) => p.id === pid)?.isHost ?? false;
-      if (isHost && levelCode) {
-        ytext.insert(0, levelCode);
+    // 1. Send our local keystrokes to the server via your stable JSON socket
+    const handleLocalUpdate = (update: Uint8Array, origin: unknown) => {
+      if (origin !== "remote" && isMounted) {
+        socketManager.send({
+          type: "yjs-update",
+          update: Array.from(update), // Convert binary to a safe JSON array
+        });
       }
     };
+    ydoc.on("update", handleLocalUpdate);
 
-    provider.on("synced", (isSynced: boolean) => {
-      if (isSynced) seed();
-    });
-    setTimeout(seed, 1000);
+    // 2. Listen for remote keystrokes and apply them to our editor
+    const handleRemoteUpdate = (e: Event) => {
+      if (!isMounted) return;
+      const updateArray = (e as CustomEvent).detail;
+      Y.applyUpdate(ydoc, new Uint8Array(updateArray), "remote");
+    };
+    window.addEventListener("yjs-remote-update", handleRemoteUpdate);
 
+    // 3. Host instantly seeds the default code (No network waiting needed!)
+    const state = useGameStore.getState();
+    const isHost = state.players.find(
+      (p) => p.id === state.currentPlayerId,
+    )?.isHost;
+
+    if (isHost && ytext.length === 0 && state.code) {
+      console.log("🌱 [Yjs] Host seeding initial code directly...");
+      ydoc.transact(() => {
+        ytext.insert(0, state.code);
+      });
+    }
+
+    // 4. Sync text back to Zustand for tests/tasks
     let syncTimer: ReturnType<typeof setTimeout> | null = null;
-    ytext.observe(() => {
+    const observer = () => {
       if (syncTimer) clearTimeout(syncTimer);
       syncTimer = setTimeout(() => {
-        const { players: ps, currentPlayerId: pid } = useGameStore.getState();
-        const isHost = ps.find((p) => p.id === pid)?.isHost ?? false;
-        if (isHost) {
+        const currentState = useGameStore.getState();
+        const currentlyHost = currentState.players.find(
+          (p) => p.id === currentState.currentPlayerId,
+        )?.isHost;
+        if (currentlyHost) {
           updateCode(ytext.toString());
         }
       }, 800);
-    });
+    };
+    ytext.observe(observer);
 
-    // Optional: keeping this for general PartyKit presence,
-    // but Monaco won't use it anymore.
-    provider.awareness.setLocalStateField("user", {
-      name: me?.name || "Player",
-      color: me?.color || "gray",
-    });
-  };
+    return () => {
+      console.log("🧹 [Yjs] Unmounting editor...");
+      isMounted = false;
+      window.removeEventListener("yjs-remote-update", handleRemoteUpdate);
+      ydoc.off("update", handleLocalUpdate);
+      ytext.unobserve(observer);
+      binding.destroy();
+      ydoc.destroy();
+      docRef.current = null;
+    };
+  }, [editorInstance, updateCode]);
 
   const handleRunTests = async () => {
     if (!isReady || isRunning || !docRef.current) return;
@@ -218,6 +215,19 @@ export default function GameScreen() {
     roundDuration <= 0
       ? 0
       : Math.max(0, Math.min(100, (roundTimeRemaining / roundDuration) * 100));
+
+  // --- CRITICAL FIX: DO NOT RENDER UNTIL LOBBY IS KNOWN ---
+  // This prevents the client from mounting Monaco and permanently
+  // attaching Yjs to a "default-room" before Zustand has finished hydrating.
+  if (!lobbyId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <h2 className="text-xl text-primary font-bold pixel-text">
+          CONNECTING TO TERMINAL...
+        </h2>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-4">
@@ -288,12 +298,16 @@ export default function GameScreen() {
             </p>
           </div>
 
-          <div className="border-4 border-border overflow-hidden relative">
+          {/* CRITICAL FIX 2: key={lobbyId} guarantees Yjs drops and remounts if the lobby changes */}
+          <div
+            key={lobbyId}
+            className="border-4 border-border overflow-hidden relative"
+          >
             <Editor
               height="520px"
               defaultLanguage="python"
               theme="vs-dark"
-              defaultValue={code}
+              defaultValue=""
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,

@@ -138,7 +138,8 @@ export type ClientGameEvent =
   | { type: "tick" }
   | { type: "reset-game" }
   | { type: "update-block-status"; blockId: string; passed: boolean }
-  | { type: "update-task-status"; taskId: string; completed: boolean };
+  | { type: "update-task-status"; taskId: string; completed: boolean }
+  | { type: "yjs-update"; update: number[] };
 
 export interface GameLevel {
   code: string;

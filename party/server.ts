@@ -1,5 +1,4 @@
 import type * as Party from "partykit/server";
-import { onConnect as yjsOnConnect } from "y-partykit";
 import {
   CategoryId,
   GameState,
@@ -53,44 +52,12 @@ export default class CodeMafiaServer implements Party.Server {
   }
 
   async onConnect(connection: Party.Connection): Promise<void> {
-    // Hand off binary Yjs sync frames to y-partykit first.
-    await yjsOnConnect(connection, this.room);
-    // Then send our existing game-state sync to the new client.
+    // Pure game state sync. No Yjs logic here anymore.
     connection.send(JSON.stringify({ type: "sync", state: this.state }));
   }
 
-  onClose(connection: Party.Connection): void {
-    const playerId = this.connectionToPlayerId.get(connection.id);
-    if (!playerId) {
-      return;
-    }
-
-    this.connectionToPlayerId.delete(connection.id);
-    const removedPlayer = this.state.players.find((player) => player.id === playerId);
-    const wasHost = removedPlayer?.isHost ?? false;
-    this.state.players = this.state.players.filter((player) => player.id !== playerId);
-    delete this.state.categoryVotes[playerId];
-    this.state.votes = this.state.votes.filter(
-      (vote) => vote.voterId !== playerId && vote.targetId !== playerId,
-    );
-
-    if (this.state.emergencyMeetingCallerId === playerId) {
-      this.state.emergencyMeetingCallerId = null;
-    }
-
-    if (this.state.votedOutPlayerId === playerId) {
-      this.state.votedOutPlayerId = null;
-    }
-
-    if (wasHost && this.state.players.length > 0) {
-      this.state.players[0]!.isHost = true;
-    }
-
-    this.broadcastState();
-  }
-
+  // Rename your old `onMessage` to `handleGameMessage`
   onMessage(message: string | ArrayBuffer, sender: Party.Connection): void {
-    // Binary frames are Yjs CRDT updates — y-partykit handles them via onConnect.
     if (typeof message !== "string") return;
 
     const event = safeParseEvent(message);
@@ -169,10 +136,48 @@ export default class CodeMafiaServer implements Party.Server {
       case "update-task-status":
         this.handleUpdateTaskStatus(event);
         break;
+      case "yjs-update":
+        this.room.broadcast(message as string, [sender.id]);
+        break;
       default: {
         const _exhaustive: never = event;
         return _exhaustive;
       }
+    }
+
+    this.broadcastState();
+  }
+
+  onClose(connection: Party.Connection): void {
+    // Removed the "-yjs" check
+    const playerId = this.connectionToPlayerId.get(connection.id);
+    if (!playerId) {
+      return;
+    }
+
+    this.connectionToPlayerId.delete(connection.id);
+    const removedPlayer = this.state.players.find(
+      (player) => player.id === playerId,
+    );
+    const wasHost = removedPlayer?.isHost ?? false;
+    this.state.players = this.state.players.filter(
+      (player) => player.id !== playerId,
+    );
+    delete this.state.categoryVotes[playerId];
+    this.state.votes = this.state.votes.filter(
+      (vote) => vote.voterId !== playerId && vote.targetId !== playerId,
+    );
+
+    if (this.state.emergencyMeetingCallerId === playerId) {
+      this.state.emergencyMeetingCallerId = null;
+    }
+
+    if (this.state.votedOutPlayerId === playerId) {
+      this.state.votedOutPlayerId = null;
+    }
+
+    if (wasHost && this.state.players.length > 0) {
+      this.state.players[0]!.isHost = true;
     }
 
     this.broadcastState();
@@ -183,7 +188,7 @@ export default class CodeMafiaServer implements Party.Server {
     event: Extract<ClientGameEvent, { type: "join" }>,
   ): void {
     this.connectionToPlayerId.set(sender.id, event.playerId);
-    
+
     if (this.state.players.length >= MAX_PLAYERS) {
       return;
     }
@@ -209,7 +214,9 @@ export default class CodeMafiaServer implements Party.Server {
     if (!playerId) {
       return false;
     }
-    return this.state.players.some((player) => player.id === playerId && player.isHost);
+    return this.state.players.some(
+      (player) => player.id === playerId && player.isHost,
+    );
   }
 
   private handleReady(
@@ -253,12 +260,21 @@ export default class CodeMafiaServer implements Party.Server {
     this.state.category = winner;
 
     // Ratio: ~20% of lobby are impostors (min 1, max e.g., 4 in a 20 player lobby)
-    const numImpostors = Math.max(1, Math.floor(this.state.players.length * 0.2));
-    const playerIndices = Array.from({ length: this.state.players.length }, (_, i) => i);
-    
+    const numImpostors = Math.max(
+      1,
+      Math.floor(this.state.players.length * 0.2),
+    );
+    const playerIndices = Array.from(
+      { length: this.state.players.length },
+      (_, i) => i,
+    );
+
     for (let i = playerIndices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [playerIndices[i], playerIndices[j]] = [playerIndices[j], playerIndices[i]];
+      [playerIndices[i], playerIndices[j]] = [
+        playerIndices[j],
+        playerIndices[i],
+      ];
     }
     const impostorIndices = new Set(playerIndices.slice(0, numImpostors));
 
@@ -380,7 +396,9 @@ export default class CodeMafiaServer implements Party.Server {
     }
 
     const alivePlayers = this.state.players.filter((player) => player.isAlive);
-    const aliveImpostors = alivePlayers.filter((player) => player.isImpostor).length;
+    const aliveImpostors = alivePlayers.filter(
+      (player) => player.isImpostor,
+    ).length;
     const aliveCivilians = alivePlayers.length - aliveImpostors;
 
     if (aliveImpostors === 0) {
@@ -440,7 +458,7 @@ export default class CodeMafiaServer implements Party.Server {
   }
 
   private handleUpdateBlockStatus(
-    event: Extract<ClientGameEvent, { type: "update-block-status" }>
+    event: Extract<ClientGameEvent, { type: "update-block-status" }>,
   ): void {
     const block = this.state.codeBlocks.find((b) => b.id === event.blockId);
     if (block) {
@@ -450,7 +468,7 @@ export default class CodeMafiaServer implements Party.Server {
   }
 
   private handleUpdateTaskStatus(
-    event: Extract<ClientGameEvent, { type: "update-task-status" }>
+    event: Extract<ClientGameEvent, { type: "update-task-status" }>,
   ): void {
     const task = this.state.sabotageTasks.find((t) => t.id === event.taskId);
     if (task) {
@@ -462,13 +480,19 @@ export default class CodeMafiaServer implements Party.Server {
   private checkWinConditions(): void {
     if (this.state.phase !== "playing") return;
 
-    if (this.state.codeBlocks.length > 0 && this.state.codeBlocks.every((b) => b.passed)) {
+    if (
+      this.state.codeBlocks.length > 0 &&
+      this.state.codeBlocks.every((b) => b.passed)
+    ) {
       this.state.winner = "civilians";
       this.state.phase = "game-over";
       return;
     }
 
-    if (this.state.sabotageTasks.length > 0 && this.state.sabotageTasks.every((t) => t.completed)) {
+    if (
+      this.state.sabotageTasks.length > 0 &&
+      this.state.sabotageTasks.every((t) => t.completed)
+    ) {
       this.state.winner = "impostor";
       this.state.phase = "game-over";
       return;
