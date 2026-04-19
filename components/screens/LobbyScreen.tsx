@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Users, Copy, Crown, Check } from "lucide-react";
 import { useGameStore } from "@/store/useGameStore";
 import { PLAYER_COLOR_MAP, MAX_PLAYERS } from "@/lib/gameData";
+import { toast } from "@/store/useToastStore";
 
 export default function LobbyScreen() {
   const { lobbyId, players, currentPlayerId, setReady } = useGameStore();
@@ -12,8 +13,7 @@ export default function LobbyScreen() {
   const copyToClipboard = () => {
     if (lobbyId) {
       navigator.clipboard.writeText(lobbyId);
-      // In a real app we'd add a toast here. Let's keep it simple for now.
-      alert("Lobby ID copied!");
+      toast.success("Lobby ID copied to clipboard!");
     }
   };
 

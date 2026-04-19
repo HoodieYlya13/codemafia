@@ -25,6 +25,8 @@ export const metadata: Metadata = {
   description: "Who is the imposter?",
 };
 
+import ToastProvider from "@/components/ToastProvider";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,6 +39,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {children}
+        <ToastProvider />
       </body>
     </html>
   );
