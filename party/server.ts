@@ -6,6 +6,7 @@ import {
   PLAYER_COLORS,
   MAX_PLAYERS,
 } from "../lib/gameData";
+import { uuidv7 } from "../lib/uuid";
 
 const DEFAULT_ROUND_DURATION_SECONDS = 45;
 const MIN_PLAYERS_TO_START = 2;
@@ -213,6 +214,9 @@ export default class CodeMafiaServer implements Party.Server {
     sender: Party.Connection,
     event: Extract<ClientGameEvent, { type: "join" }>,
   ): void {
+    if (this.connectionToPlayerId.has(sender.id)) {
+      return;
+    }
     this.connectionToPlayerId.set(sender.id, event.playerId);
 
     if (this.state.players.length >= MAX_PLAYERS) {
@@ -364,7 +368,7 @@ export default class CodeMafiaServer implements Party.Server {
     event: Extract<ClientGameEvent, { type: "send-chat" }>,
   ): void {
     this.state.chatMessages.push({
-      id: crypto.randomUUID(),
+      id: uuidv7(),
       playerId: event.playerId,
       message: event.message,
     });

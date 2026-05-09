@@ -7,17 +7,22 @@ import { useGameStore } from "@/store/useGameStore";
 export default function MenuScreen() {
   const [playerName, setPlayerName] = useState("");
   const [lobbyCode, setLobbyCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const { createGame, joinGame } = useGameStore();
 
-  const handleCreate = () => {
-    if (playerName.trim()) {
-      createGame(playerName.trim());
+  const handleCreate = async () => {
+    if (playerName.trim() && !isLoading) {
+      setIsLoading(true);
+      await createGame(playerName.trim());
+      setIsLoading(false);
     }
   };
 
-  const handleJoin = () => {
-    if (playerName.trim() && lobbyCode.trim().length === 6) {
-      joinGame(lobbyCode.trim().toUpperCase(), playerName.trim());
+  const handleJoin = async () => {
+    if (playerName.trim() && lobbyCode.trim().length === 6 && !isLoading) {
+      setIsLoading(true);
+      await joinGame(lobbyCode.trim().toUpperCase(), playerName.trim());
+      setIsLoading(false);
     }
   };
 
@@ -62,7 +67,7 @@ export default function MenuScreen() {
         <div className="flex flex-col gap-4 pt-4 border-t-4 border-border">
           <button
             onClick={handleCreate}
-            disabled={!playerName.trim()}
+            disabled={!playerName.trim() || isLoading}
             className="pixel-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             START NEW STARTUP
@@ -79,7 +84,7 @@ export default function MenuScreen() {
             />
             <button
               onClick={handleJoin}
-              disabled={!playerName.trim() || lobbyCode.length !== 6}
+              disabled={!playerName.trim() || lobbyCode.length !== 6 || isLoading}
               className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ONBOARD

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { uuidv7 } from "./uuid";
 
 interface RunCodeResponse {
   success: boolean;
@@ -53,7 +54,7 @@ export function usePyodide() {
           return;
         }
 
-        const id = crypto.randomUUID();
+        const id = uuidv7();
         callbackMap.current.set(id, resolve);
 
         workerRef.current.postMessage({

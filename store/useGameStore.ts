@@ -11,6 +11,7 @@ import {
   GameState,
   ClientGameEvent,
 } from "@/lib/gameData";
+import { uuidv7 } from "@/lib/uuid";
 
 export interface GameActions {
   setHasHydrated: (state: boolean) => void;
@@ -106,7 +107,7 @@ export const useGameStore = create<GameStateWithHydration & GameActions>()(
 
       createGame: async (playerName) => {
         const lobbyId = Math.random().toString(36).substring(2, 8).toUpperCase();
-        const playerId = crypto.randomUUID();
+        const playerId = uuidv7();
 
         set({ phase: "lobby", lobbyId, currentPlayerId: playerId });
         try {
@@ -120,7 +121,7 @@ export const useGameStore = create<GameStateWithHydration & GameActions>()(
       },
 
       joinGame: async (lobbyId, playerName) => {
-        const playerId = crypto.randomUUID();
+        const playerId = uuidv7();
         set({ phase: "lobby", lobbyId, currentPlayerId: playerId });
         try {
           await socketManager.connect(lobbyId);
