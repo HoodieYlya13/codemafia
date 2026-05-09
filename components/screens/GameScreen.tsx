@@ -207,6 +207,8 @@ export default function GameScreen() {
       }, 800);
     };
     ytext.observe(observer);
+    
+    setEditorIsEmpty(ytext.length === 0);
 
     return () => {
       isMounted = false;
