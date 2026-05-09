@@ -158,7 +158,22 @@ export default function GameScreen() {
     // 2. Listen for remote keystrokes and apply them to our editor
     const handleRemoteUpdate = (e: Event) => {
       if (!isMounted) return;
-      const updateArray = (e as CustomEvent).detail;
+      const updateArray = (e as CustomEvent).detail as number[];
+      
+      if (updateArray.length === 0) {
+        const state = useGameStore.getState();
+        const currentlyHost = state.players.find(
+          (p) => p.id === state.currentPlayerId,
+        )?.isHost;
+        if (currentlyHost) {
+          socketManager.send({
+            type: "yjs-update",
+            update: Array.from(Y.encodeStateAsUpdate(ydoc)),
+          });
+        }
+        return;
+      }
+
       Y.applyUpdate(ydoc, new Uint8Array(updateArray), "remote");
     };
     window.addEventListener("yjs-remote-update", handleRemoteUpdate);
@@ -208,11 +223,10 @@ export default function GameScreen() {
     const storeCode = useGameStore.getState().code;
     if (!docRef.current || !storeCode) return;
     setIsPulling(true);
-    const ydoc = docRef.current;
-    const ytext = ydoc.getText("monaco-sync");
-    ydoc.transact(() => {
-      if (ytext.length > 0) ytext.delete(0, ytext.length);
-      ytext.insert(0, storeCode);
+    // Request a full Yjs state sync from the host
+    socketManager.send({
+      type: "yjs-update",
+      update: [],
     });
     setTimeout(() => setIsPulling(false), 600);
   };
