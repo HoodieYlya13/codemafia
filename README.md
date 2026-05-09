@@ -7,6 +7,8 @@
   <img src="https://img.shields.io/badge/Multiplayer-PartyKit-FF7B00" alt="PartyKit" />
   <img src="https://img.shields.io/badge/Yjs-CRDTs-FFD700" alt="Yjs" />
   <img src="https://img.shields.io/badge/Python-Pyodide_(Wasm)-3776AB?logo=python" alt="Pyodide" />
+  <img src="https://img.shields.io/badge/License-PolyForm_Noncommercial-blue" alt="License" />
+  <img src="https://img.shields.io/badge/Source-Available-orange" alt="Source Available" />
 </p>
 
 **Vibe Coder** is a multiplayer social deduction game for developers (featuring up to 20 people per lobby)—think _Among Us_, but you are writing Python in VS Code. Developers must pass unit tests, while automatically assigned hidden "Impostors" subtly sabotage the code.
@@ -97,6 +99,17 @@ The `package.json` is optimized to protect production data while enabling smooth
 - **`/party`**: The PartyKit WebSocket server logic (`server.ts`) acting as a Multiplexed Traffic Cop that routes both high-level game events and Yjs editor updates through a single reliable JSON connection.
 - **`/store`**: Zustand global state management, synced in real-time.
 - **`/lib/gameData.ts`**: The reverse-engineered Python levels, tests, and sabotage tasks.
+
+
+---
+
+## 📜 License
+
+This project is **Source Available** under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+
+- **Non-Commercial Use:** You are free to use, modify, and distribute this software for personal, educational, or non-profit purposes.
+- **Commercial Use:** Commercial use of this software is strictly prohibited without explicit permission from the author.
+- **Ownership:** All rights not explicitly granted remain with the author.
 
 ---
 
