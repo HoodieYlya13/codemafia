@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { LogOut } from "lucide-react";
 import { useGameStore } from "@/store/useGameStore";
-import { CATEGORY_NAMES, type CategoryId } from "@/lib/gameData";
+import { CATEGORY_NAMES, CATEGORY_TRUE_NAMES, type CategoryId } from "@/lib/gameData";
 import ChatPanel from "@/components/ChatPanel";
 
 const CATEGORIES = Object.entries(CATEGORY_NAMES) as Array<[CategoryId, string]>;
@@ -50,7 +50,12 @@ export default function CategoryVoteScreen() {
                   onClick={() => voteCategory(id)}
                   className={`pixel-btn text-left justify-between ${selected ? "pixel-btn-primary" : "pixel-btn-ghost"}`}
                 >
-                  <span>{label}</span>
+                  <div className="flex flex-col gap-1 items-start leading-tight">
+                    <span>{label}</span>
+                    <span className="text-[10px] opacity-60 font-mono italic">
+                      ({CATEGORY_TRUE_NAMES[id]})
+                    </span>
+                  </div>
                   <span className="text-xs">({voteCount})</span>
                 </button>
               );

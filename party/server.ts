@@ -8,7 +8,7 @@ import {
 } from "../lib/gameData";
 import { uuidv7 } from "../lib/uuid";
 
-const DEFAULT_ROUND_DURATION_SECONDS = 45;
+const DEFAULT_ROUND_DURATION_SECONDS = 90;
 const MIN_PLAYERS_TO_START = 2;
 
 /** Scale rounds with lobby size so bigger groups get a fairer game.
@@ -63,11 +63,9 @@ export default class CodeMafiaServer implements Party.Server {
   }
 
   async onConnect(connection: Party.Connection): Promise<void> {
-    // Pure game state sync. No Yjs logic here anymore.
     connection.send(JSON.stringify({ type: "sync", state: this.state }));
   }
 
-  // Rename your old `onMessage` to `handleGameMessage`
   onMessage(message: string | ArrayBuffer, sender: Party.Connection): void {
     if (typeof message !== "string") return;
 
@@ -176,7 +174,6 @@ export default class CodeMafiaServer implements Party.Server {
   }
 
   onClose(connection: Party.Connection): void {
-    // Removed the "-yjs" check
     const playerId = this.connectionToPlayerId.get(connection.id);
     if (!playerId) {
       return;
@@ -206,6 +203,8 @@ export default class CodeMafiaServer implements Party.Server {
     if (wasHost && this.state.players.length > 0) {
       this.state.players[0]!.isHost = true;
     }
+
+    this.checkAutoFinalizeCategory();
 
     this.broadcastState();
   }
@@ -280,7 +279,43 @@ export default class CodeMafiaServer implements Party.Server {
   private handleVoteCategory(
     event: Extract<ClientGameEvent, { type: "vote-category" }>,
   ): void {
+    if (this.state.phase !== "category-vote") return;
     this.state.categoryVotes[event.playerId] = event.category;
+    this.checkAutoFinalizeCategory();
+  }
+
+  private checkAutoFinalizeCategory(): void {
+    if (this.state.phase !== "category-vote") return;
+
+    // Check if everyone has voted
+    const totalPlayers = this.state.players.length;
+    if (totalPlayers === 0) return;
+
+    const votesCount = Object.keys(this.state.categoryVotes).length;
+
+    if (votesCount >= totalPlayers) {
+      const counts: Record<string, number> = {};
+      for (const catId of Object.values(this.state.categoryVotes)) {
+        counts[catId] = (counts[catId] || 0) + 1;
+      }
+
+      let maxVotes = 0;
+      let winners: string[] = [];
+
+      for (const [catId, count] of Object.entries(counts)) {
+        if (count > maxVotes) {
+          maxVotes = count;
+          winners = [catId];
+        } else if (count === maxVotes) {
+          winners.push(catId);
+        }
+      }
+
+      // Automatically finalize ONLY if there is no draw
+      if (winners.length === 1) {
+        this.handleFinalizeCategory();
+      }
+    }
   }
 
   private handleFinalizeCategory(): void {

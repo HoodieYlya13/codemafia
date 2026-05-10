@@ -148,11 +148,19 @@ export interface GameLevel {
 }
 
 export const CATEGORY_NAMES: Record<CategoryId, string> = {
-  frontend: "CSS Guessing Game", // Frontend
-  backend: "Database Destruction", // Backend
-  security: "Security Theater", // Security
-  oop: "Over-Engineered Patterns", // Object-Oriented Programming
-  "data-structures": "Legacy Spaghetti Code", // Data Structures & Algorithms
+  frontend: "CSS Guessing Game",
+  backend: "Database Destruction",
+  security: "Security Theater",
+  oop: "Over-Engineered Patterns",
+  "data-structures": "Legacy Spaghetti Code",
+};
+
+export const CATEGORY_TRUE_NAMES: Record<CategoryId, string> = {
+  frontend: "Frontend",
+  backend: "Backend",
+  security: "Security",
+  oop: "Object-Oriented Programming",
+  "data-structures": "Data Structures & Algorithms",
 };
 
 export const GAME_DATA: Record<CategoryId, GameLevel[]> = {
