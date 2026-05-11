@@ -148,7 +148,7 @@ export interface GameLevel {
 }
 
 export const CATEGORY_NAMES: Record<CategoryId, string> = {
-  frontend: "CSS Guessing Game",
+  frontend: "Centering Divs",
   backend: "Database Destruction",
   security: "Security Theater",
   oop: "Over-Engineered Patterns",
