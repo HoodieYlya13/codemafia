@@ -1,0 +1,70 @@
+{
+  "routing": {
+    "repo_name": "codemafia",
+    "project_name": "Vibe Coder",
+    "hero_image": ""
+  },
+  "project_meta": {
+    "role": "Solo Creator & Reverse-Engineer",
+    "development_phase": "Production-Ready Multiplayer Revival",
+    "languages": ["TypeScript", "Python"],
+    "frameworks_and_tools": [
+      "Next.js 16.2.4",
+      "React 19.2.4",
+      "Tailwind CSS v4",
+      "React Compiler",
+      "PartyKit",
+      "PartySocket (Reconnecting Socket API)",
+      "Zustand",
+      "Yjs CRDTs",
+      "HTML5 Web Workers API",
+      "Pyodide (WebAssembly)",
+      "Monaco Editor",
+      "Framer Motion",
+      "Retro Pixel-Art CSS Animation Engine"
+    ]
+  },
+  "comprehensive_description": "A high-performance multiplayer social deduction game for developers supporting up to 20 concurrent users per lobby. Rebuilt from the ground up by reverse-engineering obfuscated, minified legacy production web assets retrieved from the Wayback Machine. The project was engineered specifically as an interactive, custom collaborative icebreaker built to engage my corporate team and host a live multiplayer gaming session during the end of our spring sprint retrospective and planning meeting. The platform integrates real-time state synchronization, collaborative coding environments using conflict-free replicated data types (CRDTs), and client-side, sandboxed execution of user-submitted code.",
+  "engineering_highlights": [
+    "Reverse-Engineered Legacy Assets: Dissected minified production bundles from Internet Archive Wayback Machine mirrors to recover game state transition logic, Python level schemas, and sabotage verification cases.",
+    "Multiplexed Event Protocol: Engineered a custom hybrid socket layer that multiplexes Zustand global game state updates, presence tracking, and Monaco editor Yjs CRDT document sync events into a single JSON-based PartyKit channel.",
+    "Sandboxed Client-Side Execution: Integrated Pyodide WebAssembly to execute Python validations and unit tests in-browser, achieving zero remote code execution (RCE) vulnerabilities and zero cloud hosting costs.",
+    "Watchdog Thread Isolation: Developed a dedicated Web Worker wrapper for Pyodide with an active 5-second supervisor watchdog that terminates and regenerates the thread to handle infinite loop exploits gracefully.",
+    "Multiplayer Collision Interception: Intercepted Monaco Editor commands to deactivate high-risk keyboard shortcuts (e.g. Cmd+A select all, mass undo/redo, cut, search-replace), blocking collaborative text degradation during concurrent edits.",
+    "Dynamic Remote Cursors: Designed a low-overhead decoration engine rendering custom CSS-styled remote cursors colored dynamically per player, including real-time floating name tags, without dropping visual frame rates."
+  ],
+  "measurable_metrics": {
+    "execution_latency": "0ms server round-trip execution latency for user-written Python code due to in-browser WebAssembly compilation.",
+    "ui_performance": "Sustained a lock-tight 60 FPS frame rate by isolating Yjs delta processing and Pyodide Wasm execution entirely within background Web Worker threads.",
+    "operational_cost": "Zero cloud database or isolated sandboxing cost, enabling infinite horizontal scalability without server-side overhead."
+  },
+  "star_challenges": [
+    {
+      "situation": "The original source code was completely lost, leaving behind only minified, compressed, and obfuscated client assets on Wayback Machine archive mirrors.",
+      "action": "Systematically mapped obfuscated variable names, reverse-engineered the core state machine, restored the level and sabotage test mechanics, and refactored the UI into a clean, modern Next.js 16 + React 19 codebase.",
+      "result": "Successfully revived and modernized a lost social deduction game, establishing a robust, fully-typed source-available architecture running concurrent React 19.",
+      "inline_image": ""
+    },
+    {
+      "situation": "Standard binary-over-WebSocket Yjs collaboration crashed on Cloudflare edge proxy routing when transferring large document updates due to token frame truncation.",
+      "action": "Constructed a custom serialization protocol that encodes binary Yjs update buffers into standard JSON number arrays and routes them as standard messages through the unified PartyKit socket.",
+      "result": "Bypassed Cloudflare's binary proxy limits entirely, enabling highly stable real-time document synchronization with zero packet truncation anomalies and zero extra socket connections.",
+      "inline_image": ""
+    },
+    {
+      "situation": "Standard collaborative coding platforms are highly vulnerable to concurrent text desynchronizations or destructive edits (e.g., players selecting all text and deleting it, or spamming global undo), rendering multiplayer gameplay impossible.",
+      "action": "Hijacked Monaco Editor's underlying command registry on initialization, systematically disabling global keyboard actions (Undo, Redo, Cut, Select All, Select All Occurrences, and Find-and-Replace) and confining actions to localized ranges.",
+      "result": "Guaranteed lobby stability and continuous playability for up to 20 active developers typing in the same shared Monaco instance, completely preventing editor lockouts and accidental text wipes.",
+      "inline_image": ""
+    }
+  ],
+  "architectural_deep_dive": {
+    "text": "The system uses Next.js 16 and Zustand for frontend presentation, communicating with a PartyKit WebSocket server. Real-time document syncing is handled by Monaco Editor linked to a local Y.Doc text node. Document updates are serialized as JSON and multiplexed inside the single game socket connection. Python compilation and unit testing are offloaded to Pyodide (running inside a sandboxed Web Worker), featuring a custom supervisor hook that automatically terminates and restarts the worker thread when an infinite loop or runaway calculation is detected.",
+    "illustration": {
+      "url": "https://img.youtube.com/vi/sFrKx15_XEM/0.jpg",
+      "alt": "Vibe Coder Original Design Concept Video Thumbnail",
+      "caption": "The original conceptual design layout and gameplay flow of Code Mafia, which served as the primary specification for this high-fidelity revival."
+    }
+  },
+  "lessons_learned": "Offloading complex WebAssembly operations (like Pyodide compilation) and real-time serialization tasks to background Web Workers is essential for modern web applications. Executing these operations on the main UI thread immediately disrupts the React rendering pipeline and drops frames. Furthermore, implementing active thread watchdogs is crucial to preventing user-submitted infinite loops from freezing the browser."
+}
