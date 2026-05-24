@@ -7,7 +7,7 @@
   "project_meta": {
     "role": "Solo Creator & Reverse-Engineer",
     "development_phase": "Production-Ready Multiplayer Revival",
-    "languages": ["TypeScript", "Python"],
+    "languages": ["TypeScript", "Python", "CSS"],
     "frameworks_and_tools": [
       "Next.js 16.2.4",
       "React 19.2.4",
