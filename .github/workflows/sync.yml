@@ -4,6 +4,15 @@ on:
   push:
     branches:
       - main
+      - master
+    paths:
+      - "portfolio.json"
+  pull_request:
+    branches:
+      - main
+      - master
+    types:
+      - closed
     paths:
       - "portfolio.json"
   workflow_dispatch:
@@ -24,7 +33,7 @@ jobs:
       - name: Fetch Central Ingestion Script
         run: |
           echo "📥 Fetching master pipeline script from ylya-bot..."
-          curl -sS https://raw.githubusercontent.com/HoodieYlya13/ylya-bot/main/sync-portfolio.js -o sync-portfolio.js
+          curl -sS https://raw.githubusercontent.com/HoodieYlya13/ylya-bot/main/sync-portfolio.mjs -o sync-portfolio.mjs
 
       - name: Install Runtime Database & AI SDKs
         run: npm install @supabase/supabase-js @google/genai
@@ -34,4 +43,4 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: node sync-portfolio.js
+        run: node sync-portfolio.mjs
