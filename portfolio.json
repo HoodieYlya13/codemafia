@@ -68,4 +68,3 @@
   },
   "lessons_learned": "Offloading complex WebAssembly operations (like Pyodide compilation) and real-time serialization tasks to background Web Workers is essential for modern web applications. Executing these operations on the main UI thread immediately disrupts the React rendering pipeline and drops frames. Furthermore, implementing active thread watchdogs is crucial to preventing user-submitted infinite loops from freezing the browser."
 }
-
