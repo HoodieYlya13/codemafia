@@ -1,0 +1,37 @@
+name: Event-Driven Vector Space Ingestion
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "portfolio.json"
+  workflow_dispatch:
+
+jobs:
+  ingest-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository Codebase
+        uses: actions/checkout@v4
+
+      - name: Initialize Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Fetch Central Ingestion Script
+        run: |
+          echo "📥 Fetching master pipeline script from ylya-bot..."
+          curl -sS https://raw.githubusercontent.com/HoodieYlya13/ylya-bot/main/sync-portfolio.js -o sync-portfolio.js
+
+      - name: Install Runtime Database & AI SDKs
+        run: npm install @supabase/supabase-js @google/genai
+
+      - name: Execute ETL Pipeline Transformation
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node sync-portfolio.js
