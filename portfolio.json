@@ -60,11 +60,7 @@
   ],
   "architectural_deep_dive": {
     "text": "The system uses Next.js 16 and Zustand for frontend presentation, communicating with a PartyKit WebSocket server. Real-time document syncing is handled by Monaco Editor linked to a local Y.Doc text node. Document updates are serialized as JSON and multiplexed inside the single game socket connection. Python compilation and unit testing are offloaded to Pyodide (running inside a sandboxed Web Worker), featuring a custom supervisor hook that automatically terminates and restarts the worker thread when an infinite loop or runaway calculation is detected.",
-    "illustration": {
-      "url": "https://img.youtube.com/vi/sFrKx15_XEM/0.jpg",
-      "alt": "Vibe Coder Original Design Concept Video Thumbnail",
-      "caption": "The original conceptual design layout and gameplay flow of Code Mafia, which served as the primary specification for this high-fidelity revival."
-    }
+    "illustration": null
   },
   "lessons_learned": "Offloading complex WebAssembly operations (like Pyodide compilation) and real-time serialization tasks to background Web Workers is essential for modern web applications. Executing these operations on the main UI thread immediately disrupts the React rendering pipeline and drops frames. Furthermore, implementing active thread watchdogs is crucial to preventing user-submitted infinite loops from freezing the browser."
 }
