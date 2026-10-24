@@ -10,7 +10,7 @@
     "party:staging": "wrangler deploy --env staging",
     "party:types": "wrangler types party/worker-configuration.d.ts",
     "build:dev": "npm run party:staging && next build",
-    "build": "npm run party:deploy && next build",
+    "build": "node scripts/deploy-server.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "npm run party:types && tsc --noEmit && tsc --noEmit -p party",

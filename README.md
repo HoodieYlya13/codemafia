@@ -79,7 +79,7 @@ To allow Vercel to automatically deploy your backend during its build process, W
 
 - **Create a token** in the Cloudflare dashboard (My Profile → API Tokens) from the "Edit Cloudflare Workers" template.
 - **Add to Vercel**: Save it in your Vercel Project Environment Variables as `CLOUDFLARE_API_TOKEN`, with your account ID as `CLOUDFLARE_ACCOUNT_ID`.
-- **Backend URL**: Add your production backend host as `NEXT_PUBLIC_PARTYKIT_HOST` (e.g., `vibecoder.username.workers.dev`).
+- **Backend URL**: Add your production backend host as `NEXT_PUBLIC_PARTYKIT_HOST` for Production (e.g., `vibecoder.username.workers.dev`), and the staging host (`vibecoder-staging.username.workers.dev`) for Preview.
   > [!IMPORTANT]
   > Do not include `https://` in the variable value. Just the raw domain.
 
@@ -87,7 +87,7 @@ To allow Vercel to automatically deploy your backend during its build process, W
 
 The `package.json` is optimized to protect production data while enabling smooth sandbox testing:
 
-- `npm run build`: **(Vercel Default)** Automatically deploys the production game server first, then builds the Next.js frontend.
+- `npm run build`: **(Vercel Default)** Deploys the game server first (`scripts/deploy-server.mjs`), then builds the Next.js frontend. Production builds deploy the production server and preview builds deploy the staging one, so a branch push never touches live lobbies. A local build skips the deploy.
 - `npm run party:deploy`: Manually deploys your WebSocket server to production (log in first with `npx wrangler login`).
 - `npm run party:staging`: Manually deploys your WebSocket server to a dedicated staging URL for testing.
 - `npm run build:dev`: A defensive script for local testing. Builds the Next.js frontend and pushes the backend to staging instead of production.
