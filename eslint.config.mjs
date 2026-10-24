@@ -24,6 +24,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "wayback-machine/**",
+    ".wrangler/**",
+    "party/worker-configuration.d.ts",
   ]),
 ]);
 

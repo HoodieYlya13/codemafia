@@ -1,4 +1,4 @@
-import type * as Party from "partykit/server";
+import { routePartykitRequest, Server, type Connection } from "partyserver";
 import {
   CategoryId,
   GameState,
@@ -54,19 +54,24 @@ function safeParseEvent(rawMessage: string): ClientGameEvent | null {
   }
 }
 
-export default class CodeMafiaServer implements Party.Server {
-  private state: GameState;
+/**
+ * One Durable Object per lobby. State lives in memory while players are
+ * connected, as it did on PartyKit.
+ */
+export class CodeMafiaServer extends Server<Env> {
+  private state!: GameState;
   private connectionToPlayerId = new Map<string, string>();
 
-  constructor(readonly room: Party.Room) {
-    this.state = createInitialState(room.id);
+  // The room name isn't known in the constructor, so set up state here.
+  onStart(): void {
+    this.state = createInitialState(this.name);
   }
 
-  async onConnect(connection: Party.Connection): Promise<void> {
+  async onConnect(connection: Connection): Promise<void> {
     connection.send(JSON.stringify({ type: "sync", state: this.state }));
   }
 
-  onMessage(message: string | ArrayBuffer, sender: Party.Connection): void {
+  onMessage(sender: Connection, message: string | ArrayBuffer): void {
     if (typeof message !== "string") return;
 
     const event = safeParseEvent(message);
@@ -162,7 +167,7 @@ export default class CodeMafiaServer implements Party.Server {
         this.handleUpdateTaskStatus(event);
         break;
       case "yjs-update":
-        this.room.broadcast(message as string, [sender.id]);
+        this.broadcast(message as string, [sender.id]);
         break;
       default: {
         const _exhaustive: never = event;
@@ -173,7 +178,7 @@ export default class CodeMafiaServer implements Party.Server {
     this.broadcastState();
   }
 
-  onClose(connection: Party.Connection): void {
+  onClose(connection: Connection): void {
     const playerId = this.connectionToPlayerId.get(connection.id);
     if (!playerId) {
       return;
@@ -210,7 +215,7 @@ export default class CodeMafiaServer implements Party.Server {
   }
 
   private handleJoin(
-    sender: Party.Connection,
+    sender: Connection,
     event: Extract<ClientGameEvent, { type: "join" }>,
   ): void {
     if (this.connectionToPlayerId.has(sender.id)) {
@@ -238,7 +243,7 @@ export default class CodeMafiaServer implements Party.Server {
     this.state.phase = this.state.phase === "menu" ? "lobby" : this.state.phase;
   }
 
-  private isHostSender(sender: Party.Connection): boolean {
+  private isHostSender(sender: Connection): boolean {
     const playerId = this.connectionToPlayerId.get(sender.id);
     if (!playerId) {
       return false;
@@ -248,7 +253,7 @@ export default class CodeMafiaServer implements Party.Server {
     );
   }
 
-  private isAliveSender(sender: Party.Connection): boolean {
+  private isAliveSender(sender: Connection): boolean {
     const playerId = this.connectionToPlayerId.get(sender.id);
     if (!playerId) {
       // Players not yet joined (during lobby) are considered "alive"/able to interact
@@ -531,7 +536,7 @@ export default class CodeMafiaServer implements Party.Server {
       cursorPosition: undefined,
     }));
 
-    this.state = createInitialState(this.room.id);
+    this.state = createInitialState(this.name);
     this.state.players = preservedPlayers;
   }
 
@@ -578,6 +583,12 @@ export default class CodeMafiaServer implements Party.Server {
   }
 
   private broadcastState(): void {
-    this.room.broadcast(JSON.stringify({ type: "sync", state: this.state }));
+    this.broadcast(JSON.stringify({ type: "sync", state: this.state }));
   }
 }
+
+export default {
+  async fetch(request: Request, env: Env) {
+    return (await routePartykitRequest(request, env)) ?? new Response("Not found", { status: 404 });
+  },
+} satisfies ExportedHandler<Env>;

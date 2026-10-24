@@ -5,12 +5,15 @@
   "scripts": {
     "dev": "concurrently -n next,party -c blue,magenta \"npm run dev:next\" \"npm run dev:party\"",
     "dev:next": "next dev",
-    "dev:party": "partykit dev",
-    "party:staging": "npx partykit deploy --name vibecoder-staging --var ENV_TYPE=staging",
+    "dev:party": "wrangler dev --port 1999",
+    "party:deploy": "wrangler deploy",
+    "party:staging": "wrangler deploy --env staging",
+    "party:types": "wrangler types party/worker-configuration.d.ts",
     "build:dev": "npm run party:staging && next build",
-    "build": "npx partykit deploy && next build",
+    "build": "npm run party:deploy && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "npm run party:types && tsc --noEmit && tsc --noEmit -p party"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -18,8 +21,8 @@
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.8.0",
     "next": "16.2.4",
-    "partykit": "^0.0.115",
-    "partysocket": "^1.1.16",
+    "partyserver": "0.5.10",
+    "partysocket": "^1.3.0",
     "pyodide": "^0.29.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -29,6 +32,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261024.1",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -39,6 +43,7 @@
     "eslint-config-next": "16.2.4",
     "eslint-plugin-react-hooks": "^7.1.0",
     "tailwindcss": "^4.2.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "4.152.0"
   }
 }

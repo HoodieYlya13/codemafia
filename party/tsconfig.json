@@ -1,0 +1,15 @@
+{
+  // The game server runs on Cloudflare Workers, not in the browser or Node.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023"],
+    "types": [],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true
+  },
+  "include": ["server.ts", "worker-configuration.d.ts", "../lib/gameData.ts", "../lib/uuid.ts"]
+}

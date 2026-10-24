@@ -42,5 +42,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# partykit
-/.partykit/
+# cloudflare workers
+.wrangler
+party/worker-configuration.d.ts
