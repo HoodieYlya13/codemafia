@@ -6,8 +6,16 @@ import { useGameStore } from "@/store/useGameStore";
 import ChatPanel from "@/components/ChatPanel";
 
 export default function RoundEndScreen() {
-  const { players, currentPlayerId, currentRound, maxRounds, nextRound, leaveLobby, callEmergencyMeeting } =
-    useGameStore();
+  const {
+    players,
+    currentPlayerId,
+    currentRound,
+    maxRounds,
+    emergencyMeetingCalled,
+    nextRound,
+    leaveLobby,
+    callEmergencyMeeting,
+  } = useGameStore();
   const me = players.find((player) => player.id === currentPlayerId);
   const isHost = Boolean(me?.isHost);
   const finalRoundReached = currentRound >= maxRounds;
@@ -42,7 +50,7 @@ export default function RoundEndScreen() {
             <button
               type="button"
               onClick={callEmergencyMeeting}
-              disabled={!me?.isAlive}
+              disabled={!me?.isAlive || emergencyMeetingCalled}
               className="pixel-btn-danger disabled:opacity-50"
             >
               SUDDEN STAND-UP

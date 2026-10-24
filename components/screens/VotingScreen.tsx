@@ -87,10 +87,11 @@ export default function VotingScreen() {
           </h2>
           <button
             type="button"
-            className="pixel-btn-primary"
+            className="pixel-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={resetGame}
+            disabled={!isHost}
           >
-            PLAY AGAIN
+            {isHost ? "PLAY AGAIN" : "AWAITING LEAD TECH"}
           </button>
         </motion.div>
       );

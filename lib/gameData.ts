@@ -61,10 +61,10 @@ export type GamePhase =
 
 export type GameWinner = "civilians" | "impostor" | null;
 
-export interface CursorPosition {
-  lineNumber: number;
-  column: number;
-}
+export const MAX_NAME_LENGTH = 12;
+export const DEFAULT_ROUND_DURATION_SECONDS = 90;
+export const MAX_CHAT_LENGTH = 100;
+export const LOBBY_CODE_LENGTH = 6;
 
 export interface Player {
   id: string;
@@ -72,9 +72,22 @@ export interface Player {
   color: string;
   isHost: boolean;
   isReady: boolean;
-  isImpostor: boolean;
   isAlive: boolean;
-  cursorPosition?: CursorPosition;
+  isOnline: boolean;
+  /**
+   * Only sent when you're allowed to know it: your own role, fired players,
+   * and everyone once the game is over.
+   */
+  isImpostor?: boolean;
+}
+
+/** A sabotage task as a player sees it. Only impostors get the details. */
+export interface SabotageTaskView {
+  id: string;
+  completed: boolean;
+  description?: string;
+  lineRange?: [number, number];
+  verificationTest?: string;
 }
 
 export interface ChatMessage {
@@ -88,19 +101,19 @@ export interface Vote {
   targetId: string | null;
 }
 
-export interface GameState {
-  phase: GamePhase;
-  lobbyId: string | null;
+/** The game as one player sees it. The server sends each player their own. */
+export interface GameView {
+  phase: Exclude<GamePhase, "menu">;
+  lobbyId: string;
   players: Player[];
-  currentPlayerId: string | null;
   category: CategoryId | null;
   categoryVotes: Record<string, CategoryId>;
-  code: string;
   codeBlocks: CodeBlock[];
-  sabotageTasks: SabotageTask[];
+  sabotageTasks: SabotageTaskView[];
   currentRound: number;
   maxRounds: number;
-  roundTimeRemaining: number;
+  /** Server time (ms) when the coding round ends, while one is running. */
+  roundEndsAt: number | null;
   roundDuration: number;
   emergencyMeetingCalled: boolean;
   emergencyMeetingCallerId: string | null;
@@ -110,36 +123,55 @@ export interface GameState {
   winner: GameWinner;
 }
 
+export type ErrorCode =
+  | "room-not-found"
+  | "room-taken"
+  | "lobby-full"
+  | "game-in-progress"
+  | "invalid-name"
+  | "bad-token"
+  | "stale-tests";
+
+/** Sent on connect as query parameters: the server joins (or rejoins) you. */
+export interface ConnectQuery {
+  playerId: string;
+  token: string;
+  name: string;
+  create?: "1";
+}
+
+/** Everything a client can ask. The server works out who is asking from the connection. */
 export type ClientGameEvent =
-  | { type: "join"; playerId: string; playerName: string }
-  | { type: "ready"; playerId: string; ready: boolean }
-  | { type: "vote-category"; playerId: string; category: CategoryId }
+  | { type: "leave" }
+  | { type: "ready"; ready: boolean }
+  | { type: "vote-category"; category: CategoryId }
   | { type: "finalize-category" }
-  | {
-      type: "start-game";
-      code: string;
-      blocks: CodeBlock[];
-      tasks: SabotageTask[];
-    }
-  | { type: "update-code"; code: string }
-  | {
-      type: "update-cursor";
-      playerId: string;
-      lineNumber: number;
-      column: number;
-    }
-  | { type: "send-chat"; playerId: string; message: string }
-  | { type: "call-emergency"; playerId: string }
+  | { type: "send-chat"; message: string }
+  | { type: "call-emergency" }
   | { type: "transition-to-voting" }
-  | { type: "cast-vote"; playerId: string; targetId: string | null }
+  | { type: "cast-vote"; targetId: string | null }
   | { type: "finalize-votes" }
   | { type: "end-round" }
   | { type: "next-round" }
-  | { type: "tick" }
   | { type: "reset-game" }
-  | { type: "update-block-status"; blockId: string; passed: boolean }
-  | { type: "update-task-status"; taskId: string; completed: boolean }
-  | { type: "yjs-update"; update: number[] };
+  | {
+      type: "report-tests";
+      /** The code the tests ran against, so stale results can be refused. */
+      code: string;
+      blocks: Record<string, boolean>;
+      tasks: Record<string, boolean>;
+    }
+  // Base64-encoded Yjs update for the shared editor.
+  | { type: "yjs-update"; update: string }
+  | { type: "cursor"; lineNumber: number; column: number };
+
+export type ServerMessage =
+  | { type: "sync"; state: GameView; you: string | null; serverNow: number }
+  | { type: "error"; code: ErrorCode }
+  // The whole editor document: replace your copy with it.
+  | { type: "yjs-reset"; update: string }
+  | { type: "yjs-update"; update: string }
+  | { type: "cursor"; playerId: string; lineNumber: number; column: number };
 
 export interface GameLevel {
   code: string;
@@ -1130,10 +1162,4 @@ def demo():
       ],
     },
   ],
-};
-
-// Helper function to pick a random level for a given category
-export const getRandomLevel = (categoryId: CategoryId): GameLevel => {
-  const levels = GAME_DATA[categoryId];
-  return levels[Math.floor(Math.random() * levels.length)];
 };

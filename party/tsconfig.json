@@ -11,5 +11,5 @@
     "noEmit": true,
     "isolatedModules": true
   },
-  "include": ["server.ts", "worker-configuration.d.ts", "../lib/gameData.ts", "../lib/uuid.ts"]
+  "include": ["server.ts", "game.ts", "worker-configuration.d.ts", "../lib/gameData.ts", "../lib/uuid.ts"]
 }

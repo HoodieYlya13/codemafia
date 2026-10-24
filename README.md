@@ -1,8 +1,8 @@
 <h1 align="center">🕵️‍♂️ Vibe Coder: The Reverse-Engineered Revival</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Next.js-16.2-black?logo=next.js" alt="Next.js" />
-  <img src="https://img.shields.io/badge/React-19.2-blue?logo=react" alt="React" />
+  <img src="https://img.shields.io/badge/Next.js-16.4-black?logo=next.js" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-19.3-blue?logo=react" alt="React" />
   <img src="https://img.shields.io/badge/Tailwind_v4-38B2AC?logo=tailwind-css" alt="Tailwind v4" />
   <img src="https://img.shields.io/badge/Multiplayer-PartyServer-FF7B00" alt="PartyServer" />
   <img src="https://img.shields.io/badge/Yjs-CRDTs-FFD700" alt="Yjs" />
@@ -27,11 +27,11 @@ I then **completely rebuilt and optimized the architecture** from the ground up 
 
 This project doesn't just recreate the game; it modernizes it to run on the latest web standards:
 
-- **Next.js 16.2 & React 19:** Built with the new React Compiler enabled. Zero `useMemo` or `useCallback` boilerplate—just pure, optimized rendering.
-- **WebSockets via PartyServer:** Replaced the legacy networking with a stable, edge-ready WebSocket server (`party/server.ts`) running on Cloudflare Durable Objects, multiplexing both JSON game state and Yjs updates over a single unified protocol.
-- **Yjs CRDTs:** Collaborative coding powered by Yjs and `y-monaco`. To bypass Cloudflare binary truncation crashes, we implemented a custom **Multiplexed JSON Provider** that wraps Yjs updates into our main WebSocket stream.
+- **Next.js 16.4 & React 19.3:** Built with the new React Compiler enabled. Zero `useMemo` or `useCallback` boilerplate—just pure, optimized rendering.
+- **Server-Authoritative WebSockets via PartyServer:** An edge WebSocket server (`party/server.ts`) on Cloudflare Durable Objects owns the game. It identifies each player by their connection (never by what a message claims), checks every action against the current phase, and sends each player their own filtered view, so roles and sabotage details never reach the wrong device. Lobbies hibernate between messages, persist to Durable Object storage, and survive refreshes, dropped connections and server restarts.
+- **Yjs CRDTs:** Collaborative coding powered by Yjs and `y-monaco`. The server holds the authoritative document and hands every player (including late joiners and reconnects) the full state, while edits travel as base64 Yjs updates multiplexed into the same JSON game socket. Remote cursors are relayed on the side instead of being stored in the game state.
   > [!NOTE]
-  > **Hybrid Sync Strategy:** The frontend uses Yjs for document delta synchronization (multiplexed via JSON) and Zustand + PartyServer for high-level game state and presence.
+  > **Hybrid Sync Strategy:** The frontend uses Yjs for document delta synchronization (multiplexed via JSON) and Zustand + PartyServer for high-level game state and presence. Round timers run on the server clock, and test results are only accepted for code that matches the shared document.
 - **In-Browser Python Execution:** Uses **Pyodide** (WebAssembly) to compile and run Python code and unit tests entirely in the client's browser. Zero latency, zero server-cost, and absolutely zero Remote Code Execution (RCE) vulnerabilities.
 - **Styling:** Upgraded to the new CSS-first **Tailwind v4** engine, retaining the retro pixel-art aesthetic while vastly improving build performance.
 - **UI & State:** Framer Motion for fluid transitions, Monaco Editor for the IDE experience, and Zustand for predictable, syncable client state.
@@ -65,6 +65,8 @@ Use the `dev` command to spin up both the Next.js app (port 3000) and the game s
 npm run dev
 ```
 
+Run `npm test` for the game rules tests.
+
 Open [http://localhost:3000](http://localhost:3000) in your browser. Open a few incognito tabs or invite friends on your local network to test the multiplayer lobby!
 
 ## 🚢 Deployment & CI/CD
@@ -94,7 +96,7 @@ The `package.json` is optimized to protect production data while enabling smooth
 
 - **`/app`**: Next.js 16 App Router UI and page logic.
 - **`/components`**: Reusable React 19 components, including the Monaco editor integration.
-- **`/party`**: The PartyServer WebSocket server logic (`server.ts`, configured in `wrangler.jsonc`) acting as a Multiplexed Traffic Cop that routes both high-level game events and Yjs editor updates through a single reliable JSON connection.
+- **`/party`**: The game rules as pure, unit-tested functions (`game.ts`, tested in `game.test.ts`), the PartyServer WebSocket server (`server.ts`, configured in `wrangler.jsonc`) that applies them and syncs the shared editor, and the client socket (`client.ts`).
 - **`/store`**: Zustand global state management, synced in real-time.
 - **`/lib/gameData.ts`**: The reverse-engineered Python levels, tests, and sabotage tasks.
 

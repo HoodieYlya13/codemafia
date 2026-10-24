@@ -1,22 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { useGameStore } from "@/store/useGameStore";
 
 export default function RoleRevealScreen() {
-  const { players, currentPlayerId, startGame } = useGameStore();
+  const { players, currentPlayerId } = useGameStore();
   const me = players.find((player) => player.id === currentPlayerId);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (me?.isHost) {
-        startGame();
-      }
-    }, 3000);
-
-    return () => window.clearTimeout(timer);
-  }, [me?.isHost, startGame]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">

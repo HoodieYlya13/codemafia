@@ -1,589 +1,239 @@
-import { routePartykitRequest, Server, type Connection } from "partyserver";
+import { routePartykitRequest, Server, type Connection, type ConnectionContext } from "partyserver";
+import * as Y from "yjs";
+import { fromBase64, toBase64 } from "lib0/buffer";
+import type { ErrorCode, ServerMessage } from "../lib/gameData";
 import {
-  CategoryId,
-  GameState,
-  ClientGameEvent,
-  PLAYER_COLORS,
-  MAX_PLAYERS,
-} from "../lib/gameData";
-import { uuidv7 } from "../lib/uuid";
+  advanceTime,
+  applyEvent,
+  createRoom,
+  disconnect,
+  join,
+  nextDeadline,
+  parseEvent,
+  viewFor,
+  type Context,
+  type Room,
+} from "./game";
 
-const DEFAULT_ROUND_DURATION_SECONDS = 90;
-const MIN_PLAYERS_TO_START = 2;
+/** Lobbies nobody is connected to are wiped after this. */
+const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
+/** Test results stay valid for code the editor held this recently. */
+const RECENT_CODE_MS = 15_000;
+const DOC_SAVE_DELAY_MS = 1000;
+const TEXT_NAME = "monaco-sync";
 
-/** Scale rounds with lobby size so bigger groups get a fairer game.
- *  2–4 → 4 | 5–8 → 5 | 9–12 → 6 | 13–16 → 7 | 17–20 → 8
- */
-function computeMaxRounds(playerCount: number): number {
-  if (playerCount <= 4)  return 4;
-  if (playerCount <= 8)  return 5;
-  if (playerCount <= 12) return 6;
-  if (playerCount <= 16) return 7;
-  return 8;
-}
+type ConnState = { playerId: string } | null;
+type Conn = Connection<ConnState>;
 
-function createInitialState(lobbyId: string): GameState {
-  return {
-    phase: "lobby",
-    lobbyId,
-    players: [],
-    currentPlayerId: null,
-    category: null,
-    categoryVotes: {},
-    code: "",
-    codeBlocks: [],
-    sabotageTasks: [],
-    currentRound: 1,
-    maxRounds: 4, // overridden dynamically in handleFinalizeCategory
-    roundTimeRemaining: DEFAULT_ROUND_DURATION_SECONDS,
-    roundDuration: DEFAULT_ROUND_DURATION_SECONDS,
-    emergencyMeetingCalled: false,
-    emergencyMeetingCallerId: null,
-    votes: [],
-    votedOutPlayerId: null,
-    chatMessages: [],
-    winner: null,
-  };
-}
+type Stored = { room: Room; emptySince: number | null };
 
-function safeParseEvent(rawMessage: string): ClientGameEvent | null {
-  try {
-    return JSON.parse(rawMessage) as ClientGameEvent;
-  } catch {
-    return null;
-  }
+/** Crypto-backed replacement for Math.random, for roles and level picks. */
+function secureRandom() {
+  return crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
 }
 
 /**
- * One Durable Object per lobby. State lives in memory while players are
- * connected, as it did on PartyKit.
+ * One Durable Object per lobby. The game rules live in `./game`; this class
+ * handles connections, storage, timers and the shared editor document.
+ *
+ * It hibernates between messages, so everything is kept in storage and
+ * `onStart` reloads it on wake-up.
  */
 export class CodeMafiaServer extends Server<Env> {
-  private state!: GameState;
-  private connectionToPlayerId = new Map<string, string>();
+  static options = { hibernate: true };
 
-  // The room name isn't known in the constructor, so set up state here.
-  onStart(): void {
-    this.state = createInitialState(this.name);
+  private stored: Stored | null = null;
+  /** The authoritative copy of the shared editor. */
+  private doc = new Y.Doc();
+  private recentCode: { code: string; at: number }[] = [];
+  private docSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async onStart() {
+    const [stored, docState] = await Promise.all([
+      this.ctx.storage.get<Stored>("room"),
+      this.ctx.storage.get<Uint8Array>("doc"),
+    ]);
+    this.stored = stored ?? null;
+    const doc = new Y.Doc();
+    if (docState) Y.applyUpdate(doc, docState);
+    this.useDoc(doc);
   }
 
-  async onConnect(connection: Connection): Promise<void> {
-    connection.send(JSON.stringify({ type: "sync", state: this.state }));
+  async onConnect(conn: Conn, ctx: ConnectionContext) {
+    const params = new URL(ctx.request.url).searchParams;
+    const create = params.get("create") === "1";
+
+    if (this.stored && create && this.stored.room.players.length > 0) {
+      return this.refuse(conn, "room-taken");
+    }
+    if (!this.stored) {
+      if (!create) return this.refuse(conn, "room-not-found");
+      this.stored = { room: createRoom(this.name), emptySince: null };
+    }
+
+    const room = this.stored.room;
+    this.stored.emptySince = null;
+    const playerId = params.get("playerId") ?? "";
+    const token = params.get("token") ?? "";
+    const valid = playerId.length > 0 && playerId.length <= 64 && token.length >= 16 && token.length <= 128;
+    const error = valid ? join(room, { playerId, token, name: params.get("name") ?? "" }) : "bad-token";
+    if (error) return this.refuse(conn, error);
+
+    conn.setState({ playerId });
+    this.send(conn, { type: "yjs-reset", update: toBase64(Y.encodeStateAsUpdate(this.doc)) });
+    await this.commit();
   }
 
-  onMessage(sender: Connection, message: string | ArrayBuffer): void {
-    if (typeof message !== "string") return;
+  async onMessage(conn: Conn, raw: string | ArrayBuffer) {
+    if (typeof raw !== "string" || !this.stored) return;
+    const event = parseEvent(raw);
+    const playerId = conn.state?.playerId;
+    if (!event || !playerId) return;
+    const room = this.stored.room;
+    const player = room.players.find((p) => p.id === playerId);
+    const canEdit = room.phase === "playing" && Boolean(player?.isAlive);
 
-    const event = safeParseEvent(message);
-    if (!event) {
-      return;
-    }
-
-    // Restrict interaction for fired players
-    const isAlive = this.isAliveSender(sender);
-    const interactiveActions = [
-      "update-code",
-      "send-chat",
-      "call-emergency",
-      "cast-vote",
-      "update-block-status",
-      "update-task-status",
-      "yjs-update",
-    ];
-
-    if (!isAlive && interactiveActions.includes(event.type)) {
-      return;
-    }
-
-    switch (event.type) {
-      case "join":
-        this.handleJoin(sender, event);
-        break;
-      case "ready":
-        this.handleReady(event);
-        break;
-      case "vote-category":
-        this.handleVoteCategory(event);
-        break;
-      case "finalize-category":
-        if (this.isHostSender(sender)) {
-          this.handleFinalizeCategory();
-        }
-        break;
-      case "start-game":
-        if (this.isHostSender(sender)) {
-          this.handleStartGame(event);
-        }
-        break;
-      case "update-code":
-        this.state.code = event.code;
-        break;
-      case "update-cursor":
-        this.handleUpdateCursor(event);
-        break;
-      case "send-chat":
-        this.handleSendChat(event);
-        break;
-      case "call-emergency":
-        this.handleCallEmergency(event);
-        break;
-      case "transition-to-voting":
-        if (this.isHostSender(sender)) {
-          this.handleTransitionToVoting();
-        }
-        break;
-      case "cast-vote":
-        this.handleCastVote(event);
-        break;
-      case "finalize-votes":
-        if (this.isHostSender(sender)) {
-          this.handleFinalizeVotes();
-        }
-        break;
-      case "end-round":
-        if (this.isHostSender(sender)) {
-          this.state.phase = "round-end";
-        }
-        break;
-      case "next-round":
-        if (this.isHostSender(sender)) {
-          this.handleNextRound();
-        }
-        break;
-      case "tick":
-        if (this.isHostSender(sender)) {
-          this.handleTick();
-        }
-        break;
-      case "reset-game":
-        if (this.isHostSender(sender)) {
-          this.handleResetGame();
-        }
-        break;
-      case "update-block-status":
-        this.handleUpdateBlockStatus(event);
-        break;
-      case "update-task-status":
-        this.handleUpdateTaskStatus(event);
-        break;
-      case "yjs-update":
-        this.broadcast(message as string, [sender.id]);
-        break;
-      default: {
-        const _exhaustive: never = event;
-        return _exhaustive;
+    if (event.type === "yjs-update") {
+      if (!canEdit) {
+        // The edit was refused: put this editor back in line with the server.
+        this.send(conn, { type: "yjs-reset", update: toBase64(Y.encodeStateAsUpdate(this.doc)) });
+        return;
       }
-    }
-
-    this.broadcastState();
-  }
-
-  onClose(connection: Connection): void {
-    const playerId = this.connectionToPlayerId.get(connection.id);
-    if (!playerId) {
-      return;
-    }
-
-    this.connectionToPlayerId.delete(connection.id);
-    const removedPlayer = this.state.players.find(
-      (player) => player.id === playerId,
-    );
-    const wasHost = removedPlayer?.isHost ?? false;
-    this.state.players = this.state.players.filter(
-      (player) => player.id !== playerId,
-    );
-    delete this.state.categoryVotes[playerId];
-    this.state.votes = this.state.votes.filter(
-      (vote) => vote.voterId !== playerId && vote.targetId !== playerId,
-    );
-
-    if (this.state.emergencyMeetingCallerId === playerId) {
-      this.state.emergencyMeetingCallerId = null;
-    }
-
-    if (this.state.votedOutPlayerId === playerId) {
-      this.state.votedOutPlayerId = null;
-    }
-
-    if (wasHost && this.state.players.length > 0) {
-      this.state.players[0]!.isHost = true;
-    }
-
-    this.checkAutoFinalizeCategory();
-
-    this.broadcastState();
-  }
-
-  private handleJoin(
-    sender: Connection,
-    event: Extract<ClientGameEvent, { type: "join" }>,
-  ): void {
-    if (this.connectionToPlayerId.has(sender.id)) {
-      return;
-    }
-    this.connectionToPlayerId.set(sender.id, event.playerId);
-
-    if (this.state.players.length >= MAX_PLAYERS) {
-      return;
-    }
-
-    if (this.state.players.some((player) => player.id === event.playerId)) {
-      return;
-    }
-
-    this.state.players.push({
-      id: event.playerId,
-      name: event.playerName,
-      color: PLAYER_COLORS[this.state.players.length % PLAYER_COLORS.length],
-      isHost: this.state.players.length === 0,
-      isReady: false,
-      isImpostor: false,
-      isAlive: true,
-    });
-    this.state.phase = this.state.phase === "menu" ? "lobby" : this.state.phase;
-  }
-
-  private isHostSender(sender: Connection): boolean {
-    const playerId = this.connectionToPlayerId.get(sender.id);
-    if (!playerId) {
-      return false;
-    }
-    return this.state.players.some(
-      (player) => player.id === playerId && player.isHost,
-    );
-  }
-
-  private isAliveSender(sender: Connection): boolean {
-    const playerId = this.connectionToPlayerId.get(sender.id);
-    if (!playerId) {
-      // Players not yet joined (during lobby) are considered "alive"/able to interact
-      return true;
-    }
-    const player = this.state.players.find((p) => p.id === playerId);
-    return player ? player.isAlive : true;
-  }
-
-  private handleReady(
-    event: Extract<ClientGameEvent, { type: "ready" }>,
-  ): void {
-    const player = this.state.players.find((p) => p.id === event.playerId);
-    if (!player) {
-      return;
-    }
-
-    player.isReady = event.ready;
-    const canAdvance =
-      this.state.players.length >= MIN_PLAYERS_TO_START &&
-      this.state.players.every((current) => current.isReady);
-
-    if (canAdvance) {
-      this.state.phase = "category-vote";
-    }
-  }
-
-  private handleVoteCategory(
-    event: Extract<ClientGameEvent, { type: "vote-category" }>,
-  ): void {
-    if (this.state.phase !== "category-vote") return;
-    this.state.categoryVotes[event.playerId] = event.category;
-    this.checkAutoFinalizeCategory();
-  }
-
-  private checkAutoFinalizeCategory(): void {
-    if (this.state.phase !== "category-vote") return;
-
-    // Check if everyone has voted
-    const totalPlayers = this.state.players.length;
-    if (totalPlayers === 0) return;
-
-    const votesCount = Object.keys(this.state.categoryVotes).length;
-
-    if (votesCount >= totalPlayers) {
-      const counts: Record<string, number> = {};
-      for (const catId of Object.values(this.state.categoryVotes)) {
-        counts[catId] = (counts[catId] || 0) + 1;
+      try {
+        Y.applyUpdate(this.doc, fromBase64(event.update), conn.id);
+      } catch {
+        return;
       }
-
-      let maxVotes = 0;
-      let winners: string[] = [];
-
-      for (const [catId, count] of Object.entries(counts)) {
-        if (count > maxVotes) {
-          maxVotes = count;
-          winners = [catId];
-        } else if (count === maxVotes) {
-          winners.push(catId);
-        }
-      }
-
-      // Automatically finalize ONLY if there is no draw
-      if (winners.length === 1) {
-        this.handleFinalizeCategory();
-      }
-    }
-  }
-
-  private handleFinalizeCategory(): void {
-    const counts = new Map<CategoryId, number>();
-    let winner: CategoryId = "oop";
-    let maxVotes = 0;
-
-    for (const category of Object.values(this.state.categoryVotes)) {
-      const nextCount = (counts.get(category) ?? 0) + 1;
-      counts.set(category, nextCount);
-      if (nextCount > maxVotes) {
-        maxVotes = nextCount;
-        winner = category;
-      }
-    }
-
-    this.state.category = winner;
-
-    // Scale rounds based on final player count (locked in at this point)
-    this.state.maxRounds = computeMaxRounds(this.state.players.length);
-
-    // Ratio: ~20% of lobby are impostors (min 1, max e.g., 4 in a 20 player lobby)
-    const numImpostors = Math.max(
-      1,
-      Math.round(this.state.players.length * 0.2),
-    );
-    const playerIndices = Array.from(
-      { length: this.state.players.length },
-      (_, i) => i,
-    );
-
-    for (let i = playerIndices.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [playerIndices[i], playerIndices[j]] = [
-        playerIndices[j],
-        playerIndices[i],
-      ];
-    }
-    const impostorIndices = new Set(playerIndices.slice(0, numImpostors));
-
-    this.state.players = this.state.players.map((player, index) => ({
-      ...player,
-      isImpostor: impostorIndices.has(index),
-      isAlive: true,
-    }));
-
-    this.state.phase = "role-reveal";
-  }
-
-  private handleStartGame(
-    event: Extract<ClientGameEvent, { type: "start-game" }>,
-  ): void {
-    if (this.state.players.length === 0) {
+      this.relay({ type: "yjs-update", update: event.update }, conn.id);
       return;
     }
 
-    this.state.code = event.code;
-    this.state.codeBlocks = event.blocks;
-    this.state.sabotageTasks = event.tasks;
-    this.state.currentRound = 1;
-    this.state.roundTimeRemaining = this.state.roundDuration;
-    this.state.votes = [];
-    this.state.categoryVotes = {};
-    this.state.votedOutPlayerId = null;
-    this.state.emergencyMeetingCalled = false;
-    this.state.emergencyMeetingCallerId = null;
-    this.state.winner = null;
-    this.state.phase = "playing";
-  }
-
-  private handleUpdateCursor(
-    event: Extract<ClientGameEvent, { type: "update-cursor" }>,
-  ): void {
-    const player = this.state.players.find((p) => p.id === event.playerId);
-    if (!player) {
+    if (event.type === "cursor") {
+      if (canEdit) {
+        this.relay({ type: "cursor", playerId, lineNumber: event.lineNumber, column: event.column }, conn.id);
+      }
       return;
     }
-    player.cursorPosition = {
-      lineNumber: event.lineNumber,
-      column: event.column,
+
+    const ctx = this.context();
+    advanceTime(room, ctx);
+    const gameId = room.gameId;
+    const result = applyEvent(room, playerId, event, ctx);
+    if (result === "stale-tests") this.send(conn, { type: "error", code: result });
+    if (event.type === "leave") conn.setState(null);
+    if (room.gameId !== gameId) this.resetDoc(room.levelCode);
+    await this.commit();
+  }
+
+  async onClose(conn: Conn) {
+    if (!this.stored) return;
+    const playerId = conn.state?.playerId;
+    const others = [...this.getConnections<ConnState>()].filter((c) => c.id !== conn.id);
+    // A second tab for the same player keeps them online.
+    if (playerId && !others.some((c) => c.state?.playerId === playerId)) {
+      disconnect(this.stored.room, playerId, Date.now());
+    }
+    if (others.length === 0) this.stored.emptySince = Date.now();
+    await this.commit();
+  }
+
+  async onAlarm() {
+    if (!this.stored) return;
+    const now = Date.now();
+    const empty = [...this.getConnections()].length === 0;
+    if (empty && this.stored.emptySince !== null && now - this.stored.emptySince >= ROOM_TTL_MS) {
+      this.stored = null;
+      this.useDoc(new Y.Doc());
+      if (this.docSaveTimer) clearTimeout(this.docSaveTimer);
+      await this.ctx.storage.deleteAll();
+      return;
+    }
+    const room = this.stored.room;
+    const gameId = room.gameId;
+    advanceTime(room, this.context());
+    if (room.gameId !== gameId) this.resetDoc(room.levelCode);
+    await this.commit();
+  }
+
+  private context(): Context {
+    return {
+      now: Date.now(),
+      random: secureRandom,
+      isRecentCode: (code) => this.isRecentCode(code),
     };
   }
 
-  private handleSendChat(
-    event: Extract<ClientGameEvent, { type: "send-chat" }>,
-  ): void {
-    this.state.chatMessages.push({
-      id: uuidv7(),
-      playerId: event.playerId,
-      message: event.message,
-    });
-  }
-
-  private handleCallEmergency(
-    event: Extract<ClientGameEvent, { type: "call-emergency" }>,
-  ): void {
-    this.state.emergencyMeetingCalled = true;
-    this.state.emergencyMeetingCallerId = event.playerId;
-    this.state.votes = [];
-    this.state.votedOutPlayerId = null;
-    this.state.phase = "emergency-meeting";
-  }
-
-  private handleTransitionToVoting(): void {
-    this.state.phase = "voting";
-  }
-
-  private handleCastVote(
-    event: Extract<ClientGameEvent, { type: "cast-vote" }>,
-  ): void {
-    const existingVote = this.state.votes.find(
-      (vote) => vote.voterId === event.playerId,
+  /** Saves the room, schedules the next timer and sends everyone their view. */
+  private async commit() {
+    if (!this.stored) return;
+    const { room, emptySince } = this.stored;
+    const deadlines = [nextDeadline(room), emptySince === null ? null : emptySince + ROOM_TTL_MS].filter(
+      (time): time is number => time !== null,
     );
-    if (existingVote) {
-      existingVote.targetId = event.targetId;
-      return;
-    }
+    await this.ctx.storage.put("room", this.stored);
+    if (deadlines.length > 0) await this.ctx.storage.setAlarm(Math.min(...deadlines));
+    else await this.ctx.storage.deleteAlarm();
 
-    this.state.votes.push({
-      voterId: event.playerId,
-      targetId: event.targetId,
+    const serverNow = Date.now();
+    for (const conn of this.getConnections<ConnState>()) {
+      const you = conn.state?.playerId ?? null;
+      this.send(conn, { type: "sync", state: viewFor(room, you), you, serverNow });
+    }
+  }
+
+  private refuse(conn: Conn, code: ErrorCode) {
+    this.send(conn, { type: "error", code });
+    conn.close(4000, code);
+  }
+
+  private send(conn: Conn, message: ServerMessage) {
+    conn.send(JSON.stringify(message));
+  }
+
+  /** Sends to every joined player except the one the message came from. */
+  private relay(message: ServerMessage, exceptId: string) {
+    const data = JSON.stringify(message);
+    for (const conn of this.getConnections<ConnState>()) {
+      if (conn.id !== exceptId && conn.state?.playerId) conn.send(data);
+    }
+  }
+
+  /** Starts a fresh editor document holding the level's code, for everyone. */
+  private resetDoc(code: string) {
+    const doc = new Y.Doc();
+    doc.getText(TEXT_NAME).insert(0, code);
+    this.useDoc(doc);
+    this.saveDoc();
+    const update = toBase64(Y.encodeStateAsUpdate(doc));
+    for (const conn of this.getConnections<ConnState>()) {
+      if (conn.state?.playerId) this.send(conn, { type: "yjs-reset", update });
+    }
+  }
+
+  private useDoc(doc: Y.Doc) {
+    this.doc.destroy();
+    this.doc = doc;
+    this.recentCode = [];
+    doc.on("update", () => {
+      const now = Date.now();
+      this.recentCode.push({ code: doc.getText(TEXT_NAME).toString(), at: now });
+      this.recentCode = this.recentCode.filter((entry) => now - entry.at <= RECENT_CODE_MS).slice(-200);
+      if (this.docSaveTimer) clearTimeout(this.docSaveTimer);
+      this.docSaveTimer = setTimeout(() => this.saveDoc(), DOC_SAVE_DELAY_MS);
     });
   }
 
-  private handleFinalizeVotes(): void {
-    const tally = new Map<string, number>();
-    let highestVotes = 0;
-    let electedId: string | null = null;
-    let tie = false;
-
-    for (const vote of this.state.votes) {
-      if (vote.targetId === null) {
-        continue;
-      }
-      const nextCount = (tally.get(vote.targetId) ?? 0) + 1;
-      tally.set(vote.targetId, nextCount);
-
-      if (nextCount > highestVotes) {
-        highestVotes = nextCount;
-        electedId = vote.targetId;
-        tie = false;
-      } else if (nextCount === highestVotes) {
-        tie = true;
-      }
-    }
-
-    const votedOutPlayerId = tie ? null : electedId;
-    this.state.votedOutPlayerId = votedOutPlayerId;
-    if (votedOutPlayerId) {
-      const ejectedPlayer = this.state.players.find(
-        (player) => player.id === votedOutPlayerId,
-      );
-      if (ejectedPlayer) {
-        ejectedPlayer.isAlive = false;
-      }
-    }
-
-    const alivePlayers = this.state.players.filter((player) => player.isAlive);
-    const aliveImpostors = alivePlayers.filter(
-      (player) => player.isImpostor,
-    ).length;
-    const aliveCivilians = alivePlayers.length - aliveImpostors;
-
-    if (aliveImpostors === 0) {
-      this.state.winner = "civilians";
-      this.state.phase = "game-over";
-    } else if (aliveImpostors >= aliveCivilians) {
-      this.state.winner = "impostor";
-      this.state.phase = "game-over";
-    } else {
-      this.state.phase = "vote-result";
-    }
-
-    this.state.votes = [];
+  private saveDoc() {
+    if (this.docSaveTimer) clearTimeout(this.docSaveTimer);
+    this.docSaveTimer = null;
+    if (!this.stored) return;
+    void this.ctx.storage.put("doc", Y.encodeStateAsUpdate(this.doc));
   }
 
-  private handleNextRound(): void {
-    this.state.currentRound += 1;
-    this.state.emergencyMeetingCalled = false;
-    this.state.emergencyMeetingCallerId = null;
-    this.state.votedOutPlayerId = null;
-    this.state.votes = [];
-
-    if (this.state.currentRound > this.state.maxRounds) {
-      this.state.winner = "impostor";
-      this.state.phase = "game-over";
-      return;
-    }
-
-    this.state.roundTimeRemaining = this.state.roundDuration;
-    this.state.phase = "playing";
-  }
-
-  private handleTick(): void {
-    if (this.state.phase !== "playing" || this.state.roundTimeRemaining <= 0) {
-      return;
-    }
-
-    this.state.roundTimeRemaining -= 1;
-    if (this.state.roundTimeRemaining <= 0) {
-      this.state.roundTimeRemaining = 0;
-      this.state.phase = "round-end";
-    }
-  }
-
-  private handleResetGame(): void {
-    const preservedPlayers = this.state.players.map((player, index) => ({
-      ...player,
-      isHost: index === 0,
-      isReady: false,
-      isImpostor: false,
-      isAlive: true,
-      cursorPosition: undefined,
-    }));
-
-    this.state = createInitialState(this.name);
-    this.state.players = preservedPlayers;
-  }
-
-  private handleUpdateBlockStatus(
-    event: Extract<ClientGameEvent, { type: "update-block-status" }>,
-  ): void {
-    const block = this.state.codeBlocks.find((b) => b.id === event.blockId);
-    if (block) {
-      block.passed = event.passed;
-      this.checkWinConditions();
-    }
-  }
-
-  private handleUpdateTaskStatus(
-    event: Extract<ClientGameEvent, { type: "update-task-status" }>,
-  ): void {
-    const task = this.state.sabotageTasks.find((t) => t.id === event.taskId);
-    if (task) {
-      task.completed = event.completed;
-      this.checkWinConditions();
-    }
-  }
-
-  private checkWinConditions(): void {
-    if (this.state.phase !== "playing") return;
-
-    if (
-      this.state.codeBlocks.length > 0 &&
-      this.state.codeBlocks.every((b) => b.passed)
-    ) {
-      this.state.winner = "civilians";
-      this.state.phase = "game-over";
-      return;
-    }
-
-    if (
-      this.state.sabotageTasks.length > 0 &&
-      this.state.sabotageTasks.every((t) => t.completed)
-    ) {
-      this.state.winner = "impostor";
-      this.state.phase = "game-over";
-      return;
-    }
-  }
-
-  private broadcastState(): void {
-    this.broadcast(JSON.stringify({ type: "sync", state: this.state }));
+  private isRecentCode(code: string) {
+    if (code === this.doc.getText(TEXT_NAME).toString()) return true;
+    const now = Date.now();
+    return this.recentCode.some((entry) => entry.code === code && now - entry.at <= RECENT_CODE_MS);
   }
 }
 

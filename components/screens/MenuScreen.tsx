@@ -3,26 +3,20 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useGameStore } from "@/store/useGameStore";
+import { LOBBY_CODE_LENGTH, MAX_NAME_LENGTH } from "@/lib/gameData";
 
 export default function MenuScreen() {
   const [playerName, setPlayerName] = useState("");
   const [lobbyCode, setLobbyCode] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const { createGame, joinGame } = useGameStore();
 
-  const handleCreate = async () => {
-    if (playerName.trim() && !isLoading) {
-      setIsLoading(true);
-      await createGame(playerName.trim());
-      setIsLoading(false);
-    }
+  const handleCreate = () => {
+    if (playerName.trim()) createGame(playerName.trim());
   };
 
-  const handleJoin = async () => {
-    if (playerName.trim() && lobbyCode.trim().length === 6 && !isLoading) {
-      setIsLoading(true);
-      await joinGame(lobbyCode.trim().toUpperCase(), playerName.trim());
-      setIsLoading(false);
+  const handleJoin = () => {
+    if (playerName.trim() && lobbyCode.trim().length === LOBBY_CODE_LENGTH) {
+      joinGame(lobbyCode.trim().toUpperCase(), playerName.trim());
     }
   };
 
@@ -56,7 +50,7 @@ export default function MenuScreen() {
           </label>
           <input
             type="text"
-            maxLength={12}
+            maxLength={MAX_NAME_LENGTH}
             className="pixel-input"
             placeholder="DEV_NAME"
             value={playerName}
@@ -67,7 +61,7 @@ export default function MenuScreen() {
         <div className="flex flex-col gap-4 pt-4 border-t-4 border-border">
           <button
             onClick={handleCreate}
-            disabled={!playerName.trim() || isLoading}
+            disabled={!playerName.trim()}
             className="pixel-btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             START NEW STARTUP
@@ -76,7 +70,7 @@ export default function MenuScreen() {
           <div className="flex gap-2">
             <input
               type="text"
-              maxLength={6}
+              maxLength={LOBBY_CODE_LENGTH}
               className="pixel-input"
               placeholder="ROOM CODE"
               value={lobbyCode}
@@ -84,7 +78,7 @@ export default function MenuScreen() {
             />
             <button
               onClick={handleJoin}
-              disabled={!playerName.trim() || lobbyCode.length !== 6 || isLoading}
+              disabled={!playerName.trim() || lobbyCode.length !== LOBBY_CODE_LENGTH}
               className="pixel-btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ONBOARD

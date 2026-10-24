@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { useGameStore } from "@/store/useGameStore";
-import { socketManager } from "@/party/client";
 import { useHasHydrated } from "@/hooks/useHasHydrated";
 import MenuScreen from "@/components/screens/MenuScreen";
 import LobbyScreen from "@/components/screens/LobbyScreen";
@@ -19,15 +18,13 @@ const GameScreen = dynamic(() => import("@/components/screens/GameScreen"), {
 export default function Home() {
   const phase = useGameStore((state) => state.phase);
   const lobbyId = useGameStore((state) => state.lobbyId);
+  const reconnect = useGameStore((state) => state.reconnect);
   const hasHydrated = useHasHydrated();
 
-  // Handle auto-reconnection on refresh
+  // After a refresh, take the same seat back.
   useEffect(() => {
-    if (hasHydrated && lobbyId && !socketManager.isConnected) {
-      console.log("Auto-reconnecting to lobby:", lobbyId);
-      socketManager.connect(lobbyId);
-    }
-  }, [hasHydrated, lobbyId]);
+    if (hasHydrated) reconnect();
+  }, [hasHydrated, reconnect]);
 
   // If not hydrated yet, we show a simple loading state or the background to avoid mismatch
   if (!hasHydrated) return <main className="min-h-screen sky-bg" />;
@@ -40,7 +37,14 @@ export default function Home() {
       <div className="absolute bottom-0 left-0 right-0 h-8 bg-secondary/50" />
 
       <div className="relative z-10 h-full">
-        {phase === "menu" && <MenuScreen />}
+        {phase === "menu" && !lobbyId && <MenuScreen />}
+        {phase === "menu" && lobbyId && (
+          <div className="min-h-screen flex items-center justify-center p-4">
+            <h2 className="text-xl text-primary font-bold pixel-text">
+              CONNECTING TO TERMINAL...
+            </h2>
+          </div>
+        )}
         {phase === "lobby" && <LobbyScreen />}
 
         {phase === "category-vote" && <CategoryVoteScreen />}

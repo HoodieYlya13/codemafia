@@ -5,26 +5,26 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { socketManager } from "@/party/client";
 import { toast } from "@/store/useToastStore";
 import {
-  CategoryId,
-  getRandomLevel,
-  GamePhase,
-  GameState,
-  ClientGameEvent,
+  DEFAULT_ROUND_DURATION_SECONDS,
+  LOBBY_CODE_LENGTH,
+  type CategoryId,
+  type ClientGameEvent,
+  type ErrorCode,
+  type GamePhase,
+  type GameView,
 } from "@/lib/gameData";
 import { uuidv7 } from "@/lib/uuid";
 
 export interface GameActions {
   setHasHydrated: (state: boolean) => void;
-  syncState: (state: Partial<GameState>) => void;
-  createGame: (playerName: string) => Promise<void>;
-  joinGame: (lobbyId: string, playerName: string) => Promise<void>;
+  syncState: (state: GameView, you: string | null, serverNow: number) => void;
+  handleError: (code: ErrorCode) => void;
+  createGame: (playerName: string) => void;
+  joinGame: (lobbyId: string, playerName: string) => void;
+  reconnect: () => void;
   setReady: (ready: boolean) => void;
   voteCategory: (category: CategoryId) => void;
   finalizeCategoryVote: () => void;
-  startGame: () => void;
-  setPhase: (phase: GamePhase) => void;
-  updateCode: (code: string) => void;
-  updateCursorPosition: (lineNumber: number, column: number) => void;
   sendChatMessage: (message: string) => void;
   callEmergencyMeeting: () => void;
   transitionToVoting: () => void;
@@ -32,27 +32,42 @@ export interface GameActions {
   finalizeVotes: () => void;
   endRound: () => void;
   nextRound: () => void;
-  tick: () => void;
   resetGame: () => void;
-  updateBlockStatus: (blockId: string, passed: boolean) => void;
-  updateTaskStatus: (taskId: string, completed: boolean) => void;
+  reportTests: (code: string, blocks: Record<string, boolean>, tasks: Record<string, boolean>) => void;
   leaveLobby: () => void;
 }
 
-const initialState: Omit<GameState, "_hasHydrated"> = {
+export interface ClientState extends Omit<GameView, "phase" | "lobbyId"> {
+  phase: GamePhase;
+  lobbyId: string | null;
+  currentPlayerId: string | null;
+  /** Secret proving this tab is `currentPlayerId` when it reconnects. */
+  token: string | null;
+  playerName: string;
+  /** Whether this tab created the lobby and is still waiting for the server to confirm it. */
+  creating: boolean;
+  /** Server clock minus local clock, to show the round timer accurately. */
+  clockOffset: number;
+  _hasHydrated: boolean;
+}
+
+const initialState: Omit<ClientState, "_hasHydrated"> = {
   phase: "menu",
   lobbyId: null,
-  players: [],
   currentPlayerId: null,
+  token: null,
+  playerName: "",
+  creating: false,
+  clockOffset: 0,
+  players: [],
   category: null,
   categoryVotes: {},
-  code: "",
   codeBlocks: [],
   sabotageTasks: [],
   currentRound: 1,
   maxRounds: 4,
-  roundTimeRemaining: 90,
-  roundDuration: 90,
+  roundEndsAt: null,
+  roundDuration: DEFAULT_ROUND_DURATION_SECONDS,
   emergencyMeetingCalled: false,
   emergencyMeetingCallerId: null,
   votes: [],
@@ -61,231 +76,142 @@ const initialState: Omit<GameState, "_hasHydrated"> = {
   winner: null,
 };
 
-export interface GameStateWithHydration extends GameState {
-  _hasHydrated: boolean;
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function randomLobbyCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(LOBBY_CODE_LENGTH));
+  return Array.from(bytes, (byte) => CODE_ALPHABET[byte % CODE_ALPHABET.length]).join("");
 }
 
-export const useGameStore = create<GameStateWithHydration & GameActions>()(
+const ERROR_MESSAGES: Record<ErrorCode, string> = {
+  "room-not-found": "No startup with that code. Check the room code.",
+  "room-taken": "That room code is taken. Try again.",
+  "lobby-full": "This startup is fully staffed.",
+  "game-in-progress": "That sprint already started. Wait for the next one.",
+  "invalid-name": "Pick a name first.",
+  "bad-token": "This seat belongs to someone else.",
+  "stale-tests": "The code changed while your tests ran. Deploy again.",
+};
+
+export const useGameStore = create<ClientState & GameActions>()(
   persist(
-    (set, get) => ({
-      ...initialState,
-      _hasHydrated: false,
+    (set, get) => {
+      const send = (event: ClientGameEvent) => socketManager.send(event);
 
-      setHasHydrated: (state) => {
-        set({ _hasHydrated: state });
-      },
+      const connect = (lobbyId: string, playerName: string, creating: boolean) => {
+        const currentPlayerId = uuidv7();
+        const token = crypto.randomUUID();
+        set({ ...initialState, lobbyId, currentPlayerId, token, playerName, creating });
+        get().reconnect();
+      };
 
-      syncState: (newState) => {
-        const { players: oldPlayers, currentPlayerId } = get();
-        const newPlayers = newState.players || [];
+      return {
+        ...initialState,
+        _hasHydrated: false,
 
-        // Only detect changes if we already had a baseline (to avoid toasting everything on first sync)
-        if (oldPlayers.length > 0 && newPlayers.length > 0) {
-          // Detect joins
-          newPlayers.forEach((newPlayer) => {
-            if (
-              newPlayer.id !== currentPlayerId &&
-              !oldPlayers.find((p) => p.id === newPlayer.id)
-            ) {
-              toast.info(`${newPlayer.name} onboarded to the startup`);
-            }
+        setHasHydrated: (state) => {
+          set({ _hasHydrated: state });
+        },
+
+        syncState: (state, you, serverNow) => {
+          const { players: oldPlayers, currentPlayerId } = get();
+          const newPlayers = state.players;
+
+          // Only detect changes if we already had a baseline (to avoid toasting everything on first sync)
+          if (oldPlayers.length > 0 && newPlayers.length > 0) {
+            // Detect joins
+            newPlayers.forEach((newPlayer) => {
+              if (
+                newPlayer.id !== currentPlayerId &&
+                !oldPlayers.find((p) => p.id === newPlayer.id)
+              ) {
+                toast.info(`${newPlayer.name} onboarded to the startup`);
+              }
+            });
+
+            // Detect leaves
+            oldPlayers.forEach((oldPlayer) => {
+              if (
+                oldPlayer.id !== currentPlayerId &&
+                !newPlayers.find((p) => p.id === oldPlayer.id)
+              ) {
+                toast.info(`${oldPlayer.name} quit for a better offer`);
+              }
+            });
+          }
+
+          set({
+            ...state,
+            creating: false,
+            currentPlayerId: you ?? currentPlayerId,
+            clockOffset: serverNow - Date.now(),
           });
+        },
 
-          // Detect leaves
-          oldPlayers.forEach((oldPlayer) => {
-            if (
-              oldPlayer.id !== currentPlayerId &&
-              !newPlayers.find((p) => p.id === oldPlayer.id)
-            ) {
-              toast.info(`${oldPlayer.name} quit for a better offer`);
-            }
+        handleError: (code) => {
+          if (code === "stale-tests") {
+            toast.warning(ERROR_MESSAGES[code]);
+            return;
+          }
+          const { creating, playerName } = get();
+          socketManager.disconnect();
+          // Two lobbies drew the same code: quietly try another one.
+          if (code === "room-taken" && creating) {
+            connect(randomLobbyCode(), playerName, true);
+            return;
+          }
+          toast.error(ERROR_MESSAGES[code]);
+          set({ ...initialState, _hasHydrated: true });
+        },
+
+        createGame: (playerName) => {
+          connect(randomLobbyCode(), playerName, true);
+        },
+
+        joinGame: (lobbyId, playerName) => {
+          connect(lobbyId, playerName, false);
+        },
+
+        reconnect: () => {
+          const { lobbyId, currentPlayerId, token, playerName, creating } = get();
+          if (!lobbyId || !currentPlayerId || !token) return;
+          socketManager.connect(lobbyId, {
+            playerId: currentPlayerId,
+            token,
+            name: playerName,
+            create: creating ? "1" : undefined,
           });
-        }
+        },
 
-        set({ ...newState, currentPlayerId });
-      },
+        setReady: (ready) => send({ type: "ready", ready }),
+        voteCategory: (category) => send({ type: "vote-category", category }),
+        finalizeCategoryVote: () => send({ type: "finalize-category" }),
+        sendChatMessage: (message) => send({ type: "send-chat", message }),
+        callEmergencyMeeting: () => send({ type: "call-emergency" }),
+        transitionToVoting: () => send({ type: "transition-to-voting" }),
+        castVote: (targetId) => send({ type: "cast-vote", targetId }),
+        finalizeVotes: () => send({ type: "finalize-votes" }),
+        endRound: () => send({ type: "end-round" }),
+        nextRound: () => send({ type: "next-round" }),
+        resetGame: () => send({ type: "reset-game" }),
+        reportTests: (code, blocks, tasks) => send({ type: "report-tests", code, blocks, tasks }),
 
-      createGame: async (playerName) => {
-        const lobbyId = Math.random().toString(36).substring(2, 8).toUpperCase();
-        const playerId = uuidv7();
-
-        set({ phase: "lobby", lobbyId, currentPlayerId: playerId });
-        try {
-          await socketManager.connect(lobbyId);
-          const event: ClientGameEvent = { type: "join", playerId, playerName };
-          socketManager.send(event);
-        } catch (error) {
-          console.error("Server room is on fire:", error);
-          set({ ...initialState });
-        }
-      },
-
-      joinGame: async (lobbyId, playerName) => {
-        const playerId = uuidv7();
-        set({ phase: "lobby", lobbyId, currentPlayerId: playerId });
-        try {
-          await socketManager.connect(lobbyId);
-          const event: ClientGameEvent = { type: "join", playerId, playerName };
-          socketManager.send(event);
-        } catch (error) {
-          console.error("Server room is on fire:", error);
-          set({ ...initialState });
-        }
-      },
-
-      setReady: (ready) => {
-        const { currentPlayerId } = get();
-        if (currentPlayerId) {
-          const event: ClientGameEvent = {
-            type: "ready",
-            playerId: currentPlayerId,
-            ready,
-          };
-          socketManager.send(event);
-        }
-      },
-
-      voteCategory: (category) => {
-        const { currentPlayerId } = get();
-        if (currentPlayerId) {
-          const event: ClientGameEvent = {
-            type: "vote-category",
-            playerId: currentPlayerId,
-            category,
-          };
-          socketManager.send(event);
-        }
-      },
-
-      finalizeCategoryVote: () => {
-        const event: ClientGameEvent = { type: "finalize-category" };
-        socketManager.send(event);
-      },
-
-      startGame: async () => {
-        const { category } = get();
-        const levelData = getRandomLevel(category ?? "oop");
-        const event: ClientGameEvent = {
-          type: "start-game",
-          code: levelData.code,
-          blocks: levelData.blocks,
-          tasks: levelData.tasks,
-        };
-        socketManager.send(event);
-      },
-
-      setPhase: (phase) => {
-        set({ phase });
-      },
-
-      updateCode: (code) => {
-        set({ code });
-        const event: ClientGameEvent = { type: "update-code", code };
-        socketManager.send(event);
-      },
-
-      updateCursorPosition: (lineNumber, column) => {
-        const { currentPlayerId } = get();
-        if (currentPlayerId) {
-          const event: ClientGameEvent = {
-            type: "update-cursor",
-            playerId: currentPlayerId,
-            lineNumber,
-            column,
-          };
-          socketManager.send(event);
-        }
-      },
-
-      sendChatMessage: (message) => {
-        const { currentPlayerId } = get();
-        if (currentPlayerId) {
-          const event: ClientGameEvent = {
-            type: "send-chat",
-            playerId: currentPlayerId,
-            message,
-          };
-          socketManager.send(event);
-        }
-      },
-
-      callEmergencyMeeting: () => {
-        const { currentPlayerId } = get();
-        if (currentPlayerId) {
-          const event: ClientGameEvent = {
-            type: "call-emergency",
-            playerId: currentPlayerId,
-          };
-          socketManager.send(event);
-        }
-      },
-
-      transitionToVoting: () => {
-        const event: ClientGameEvent = { type: "transition-to-voting" };
-        socketManager.send(event);
-      },
-
-      castVote: (targetId) => {
-        const { currentPlayerId } = get();
-        if (currentPlayerId) {
-          const event: ClientGameEvent = {
-            type: "cast-vote",
-            playerId: currentPlayerId,
-            targetId,
-          };
-          socketManager.send(event);
-        }
-      },
-
-      finalizeVotes: () => {
-        const event: ClientGameEvent = { type: "finalize-votes" };
-        socketManager.send(event);
-      },
-
-      endRound: () => {
-        const event: ClientGameEvent = { type: "end-round" };
-        socketManager.send(event);
-      },
-
-      nextRound: () => {
-        const event: ClientGameEvent = { type: "next-round" };
-        socketManager.send(event);
-      },
-
-      tick: () => {
-        const { players, currentPlayerId } = get();
-        const me = players.find((p) => p.id === currentPlayerId);
-        if (me?.isHost) {
-          const event: ClientGameEvent = { type: "tick" };
-          socketManager.send(event);
-        }
-      },
-
-      resetGame: () => {
-        const event: ClientGameEvent = { type: "reset-game" };
-        socketManager.send(event);
-      },
-
-      updateBlockStatus: (blockId, passed) => {
-        const event: ClientGameEvent = { type: "update-block-status", blockId, passed };
-        socketManager.send(event);
-      },
-
-      updateTaskStatus: (taskId, completed) => {
-        const event: ClientGameEvent = { type: "update-task-status", taskId, completed };
-        socketManager.send(event);
-      },
-      leaveLobby: () => {
-        socketManager.disconnect();
-        set({ ...initialState, _hasHydrated: true });
-      },
-    }),
+        leaveLobby: () => {
+          send({ type: "leave" });
+          socketManager.disconnect();
+          set({ ...initialState, _hasHydrated: true });
+        },
+      };
+    },
     {
       name: "game-lobby-storage",
       storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         lobbyId: state.lobbyId,
         currentPlayerId: state.currentPlayerId,
+        token: state.token,
+        playerName: state.playerName,
+        creating: state.creating,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

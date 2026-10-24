@@ -88,6 +88,9 @@ export default function LobbyScreen() {
                     {player.id === currentPlayerId && (
                       <span className="text-muted-foreground">(You)</span>
                     )}
+                    {!player.isOnline && (
+                      <span className="text-muted-foreground">(AFK)</span>
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

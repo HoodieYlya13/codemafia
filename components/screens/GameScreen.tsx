@@ -1,93 +1,88 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { motion } from "framer-motion";
+import { MonacoBinding } from "y-monaco";
 import { useGameStore } from "@/store/useGameStore";
 import { usePyodide } from "@/lib/usePyodide";
-import * as Y from "yjs";
-import { MonacoBinding } from "y-monaco";
 import { PLAYER_COLOR_MAP } from "@/lib/gameData";
 import { socketManager } from "@/party/client";
 import ChatPanel from "@/components/ChatPanel";
 
+const TEXT_NAME = "monaco-sync";
+
+/** Quotes a player name for CSS `content`, so no name can break the stylesheet. */
+function cssString(value: string) {
+  return `"${value.replace(/[\\"'<>\n\r\f]/g, (char) => `\\${char.charCodeAt(0).toString(16)} `)}"`;
+}
+
+/** Seconds left in the round, counted against the server's clock. */
+function useSecondsLeft(roundEndsAt: number | null, clockOffset: number) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (roundEndsAt === null) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(interval);
+  }, [roundEndsAt]);
+  if (roundEndsAt === null) return 0;
+  return Math.max(0, Math.ceil((roundEndsAt - (now + clockOffset)) / 1000));
+}
+
 export default function GameScreen() {
   const {
     lobbyId,
-    code,
     codeBlocks,
     sabotageTasks,
     players,
     currentPlayerId,
-    roundTimeRemaining,
+    roundEndsAt,
     roundDuration,
-    tick,
+    clockOffset,
+    emergencyMeetingCalled,
     callEmergencyMeeting,
     endRound,
-    updateBlockStatus,
-    updateTaskStatus,
-    updateCode,
-    updateCursorPosition,
+    reportTests,
   } = useGameStore();
 
-  const { isReady, runTest } = usePyodide();
+  const { status, isReady, runTest, retry } = usePyodide();
   const [isRunning, setIsRunning] = useState(false);
-  const [isPulling, setIsPulling] = useState(false);
-  const [editorIsEmpty, setEditorIsEmpty] = useState(true);
 
-  // Refs for Yjs, Monaco, and custom cursors
-  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
-  const docRef = useRef<Y.Doc | null>(null);
+  // Refs for Monaco and custom cursors
   const monacoRef = useRef<Monaco | null>(null);
   const decorationsCollection =
     useRef<editor.IEditorDecorationsCollection | null>(null);
-
   const [editorInstance, setEditorInstance] =
     useState<editor.IStandaloneCodeEditor | null>(null);
 
+  // The shared document and remote cursors live in the socket manager.
+  const doc = useSyncExternalStore(socketManager.subscribeDoc, socketManager.getDoc, socketManager.getDoc);
+  const cursors = useSyncExternalStore(
+    socketManager.subscribeCursors,
+    socketManager.getCursors,
+    socketManager.getCursors,
+  );
+
   const me = players.find((player) => player.id === currentPlayerId);
   const isImpostor = Boolean(me?.isImpostor);
+  const secondsLeft = useSecondsLeft(roundEndsAt, clockOffset);
 
-  // 1. Handle Game Clock (Only for Host)
+  // Render the other players' cursors
   useEffect(() => {
-    if (!me?.isHost) return;
-    const interval = window.setInterval(() => {
-      tick();
-    }, 1000);
-    return () => window.clearInterval(interval);
-  }, [me?.isHost, tick]);
-
-  // 2. Cleanup Yjs on Unmount
-  useEffect(() => {
-    return () => {
-      if (docRef.current) {
-        docRef.current.destroy();
-        docRef.current = null;
-      }
-    };
-  }, []);
-
-  // 4. Render multiplayer cursors via Zustand
-  useEffect(() => {
-    if (!editorRef.current || !monacoRef.current) return;
-    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editorInstance || !monaco) return;
 
     if (!decorationsCollection.current) {
-      decorationsCollection.current = editor.createDecorationsCollection([]);
+      decorationsCollection.current = editorInstance.createDecorationsCollection([]);
     }
 
     const newDecorations = players
-      .filter((p) => p.id !== currentPlayerId && p.cursorPosition && p.isAlive)
+      .filter((p) => p.id !== currentPlayerId && p.isAlive && p.isOnline && cursors.has(p.id))
       .map((p) => {
-        const { lineNumber, column } = p.cursorPosition!;
+        const { lineNumber, column } = cursors.get(p.id)!;
         return {
-          range: new monacoRef.current.Range(
-            lineNumber,
-            column,
-            lineNumber,
-            column,
-          ),
+          range: new monaco.Range(lineNumber, column, lineNumber, column),
           options: {
             className: `monaco-cursor monaco-cursor-${p.color}`,
             hoverMessage: { value: p.name },
@@ -96,15 +91,11 @@ export default function GameScreen() {
       });
 
     decorationsCollection.current.set(newDecorations);
-  }, [players, currentPlayerId]);
+  }, [editorInstance, players, currentPlayerId, cursors]);
 
-  // 5. Initialize Yjs and Bind to Monaco
   const handleEditorDidMount: OnMount = (editor, monaco) => {
-    if (!lobbyId) return;
-
-    editorRef.current = editor;
-    setEditorInstance(editor);
     monacoRef.current = monaco;
+    setEditorInstance(editor);
 
     // Disable shortcuts that cause huge collaborative conflicts:
     // Undo (Ctrl+Z / Cmd+Z)
@@ -122,138 +113,57 @@ export default function GameScreen() {
     // Cut (Ctrl+X / Cmd+X) — silent mass-delete if large selection exists
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyX, () => {});
 
-    // Track local cursor movements
+    // Share local cursor movements
     editor.onDidChangeCursorPosition((event) => {
-      updateCursorPosition(event.position.lineNumber, event.position.column);
+      socketManager.sendCursor(event.position.lineNumber, event.position.column);
     });
   };
 
-  // Initialize Yjs and Bind to Monaco
+  // Bind the editor to the shared document; rebinds when the server replaces it.
   useEffect(() => {
-    if (!editorInstance) return;
-
-    let isMounted = true;
-
-    const ydoc = new Y.Doc();
-    docRef.current = ydoc;
-    const ytext = ydoc.getText("monaco-sync");
-
-    const binding = new MonacoBinding(
-      ytext,
-      editorInstance.getModel()!,
-      new Set([editorInstance]),
-    );
-
-    // 1. Send our local keystrokes to the server via your stable JSON socket
-    const handleLocalUpdate = (update: Uint8Array, origin: unknown) => {
-      if (origin !== "remote" && isMounted) {
-        socketManager.send({
-          type: "yjs-update",
-          update: Array.from(update),
-        });
-      }
-    };
-    ydoc.on("update", handleLocalUpdate);
-
-    // 2. Listen for remote keystrokes and apply them to our editor
-    const handleRemoteUpdate = (e: Event) => {
-      if (!isMounted) return;
-      const updateArray = (e as CustomEvent).detail as number[];
-      
-      if (updateArray.length === 0) {
-        const state = useGameStore.getState();
-        const currentlyHost = state.players.find(
-          (p) => p.id === state.currentPlayerId,
-        )?.isHost;
-        if (currentlyHost) {
-          socketManager.send({
-            type: "yjs-update",
-            update: Array.from(Y.encodeStateAsUpdate(ydoc)),
-          });
-        }
-        return;
-      }
-
-      Y.applyUpdate(ydoc, new Uint8Array(updateArray), "remote");
-    };
-    window.addEventListener("yjs-remote-update", handleRemoteUpdate);
-
-    // 3. Host instantly seeds the default code
-    const state = useGameStore.getState();
-    const isHost = state.players.find(
-      (p) => p.id === state.currentPlayerId,
-    )?.isHost;
-
-    if (isHost && ytext.length === 0 && state.code) {
-      ydoc.transact(() => {
-        ytext.insert(0, state.code);
-      });
-    }
-
-    // 4. Sync text back to Zustand for tests/tasks
-    // Also track whether the editor is visually empty (to show git pull button)
-    let syncTimer: ReturnType<typeof setTimeout> | null = null;
-    const observer = () => {
-      setEditorIsEmpty(ytext.length === 0);
-      if (syncTimer) clearTimeout(syncTimer);
-      syncTimer = setTimeout(() => {
-        const currentState = useGameStore.getState();
-        const currentlyHost = currentState.players.find(
-          (p) => p.id === currentState.currentPlayerId,
-        )?.isHost;
-        if (currentlyHost) {
-          updateCode(ytext.toString());
-        }
-      }, 800);
-    };
-    ytext.observe(observer);
-    
-    setEditorIsEmpty(ytext.length === 0);
-
-    return () => {
-      isMounted = false;
-      window.removeEventListener("yjs-remote-update", handleRemoteUpdate);
-      ydoc.off("update", handleLocalUpdate);
-      ytext.unobserve(observer);
-      binding.destroy();
-      ydoc.destroy();
-      docRef.current = null;
-    };
-  }, [editorInstance, updateCode]);
-
-  const handleGitPull = () => {
-    const storeCode = useGameStore.getState().code;
-    if (!docRef.current || !storeCode) return;
-    setIsPulling(true);
-    // Request a full Yjs state sync from the host
-    socketManager.send({
-      type: "yjs-update",
-      update: [],
-    });
-    setTimeout(() => setIsPulling(false), 600);
-  };
+    const model = editorInstance?.getModel();
+    if (!editorInstance || !model) return;
+    const binding = new MonacoBinding(doc.getText(TEXT_NAME), model, new Set([editorInstance]));
+    return () => binding.destroy();
+  }, [editorInstance, doc]);
 
   const handleRunTests = async () => {
-    if (!isReady || isRunning || !docRef.current) return;
+    if (!isReady || isRunning) return;
     setIsRunning(true);
 
-    const currentCode = docRef.current.getText("monaco-sync").toString();
+    const currentCode = doc.getText(TEXT_NAME).toString();
+    const blocks: Record<string, boolean> = {};
+    const tasks: Record<string, boolean> = {};
 
     try {
+      // Only report what actually ran: after a timeout the worker restarts,
+      // and the remaining tests would fail for the wrong reason.
+      let stopped = false;
       for (const block of codeBlocks) {
         const result = await runTest(currentCode, block.testCase);
-        if (block.passed !== result.success) {
-          updateBlockStatus(block.id, result.success);
+        if (result.notReady) {
+          stopped = true;
+          break;
+        }
+        blocks[block.id] = result.success;
+        if (result.timedOut) {
+          stopped = true;
+          break;
         }
       }
 
-      if (isImpostor) {
+      if (isImpostor && !stopped) {
         for (const task of sabotageTasks) {
+          if (!task.verificationTest) continue;
           const result = await runTest(currentCode, task.verificationTest);
-          if (task.completed !== result.success) {
-            updateTaskStatus(task.id, result.success);
-          }
+          if (result.notReady) break;
+          tasks[task.id] = result.success;
+          if (result.timedOut) break;
         }
+      }
+
+      if (Object.keys(blocks).length > 0 || Object.keys(tasks).length > 0) {
+        reportTests(currentCode, blocks, tasks);
       }
     } finally {
       setIsRunning(false);
@@ -263,7 +173,7 @@ export default function GameScreen() {
   const timeRatio =
     roundDuration <= 0
       ? 0
-      : Math.max(0, Math.min(100, (roundTimeRemaining / roundDuration) * 100));
+      : Math.max(0, Math.min(100, (secondsLeft / roundDuration) * 100));
 
   if (!lobbyId) {
     return (
@@ -279,19 +189,20 @@ export default function GameScreen() {
     <div className="min-h-screen p-4">
       <style>{`
         ${players
+          .filter((p) => p.color in PLAYER_COLOR_MAP)
           .map(
             (p) => `
           .monaco-cursor-${p.color} {
-            border-left: 2px solid ${PLAYER_COLOR_MAP[p.color] || "#FFF"} !important;
+            border-left: 2px solid ${PLAYER_COLOR_MAP[p.color]} !important;
             position: relative;
             z-index: 10;
           }
           .monaco-cursor-${p.color}::after {
-            content: '${p.name}';
+            content: ${cssString(p.name)};
             position: absolute;
             top: -18px;
             left: -2px;
-            background: ${PLAYER_COLOR_MAP[p.color] || "#FFF"};
+            background: ${PLAYER_COLOR_MAP[p.color]};
             color: white;
             font-family: "Press Start 2P", cursive, sans-serif;
             font-size: 8px;
@@ -341,7 +252,7 @@ export default function GameScreen() {
                   className="border-2 border-border p-2 bg-background/60"
                 >
                   <p className="text-xs">
-                    {isImpostor ? task.description : "Obfuscated requirements"}
+                    {task.description ?? "Obfuscated requirements"}
                   </p>
                   <p
                     className={`text-xs mt-1 ${task.completed ? "text-success" : "text-muted-foreground"}`}
@@ -369,31 +280,30 @@ export default function GameScreen() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex gap-4 items-center flex-wrap gap-y-2">
               <h2 className="text-sm md:text-base text-primary">PROD MAIN</h2>
-              <button
-                type="button"
-                className="pixel-btn-secondary py-1.5 px-3 text-xs"
-                onClick={handleRunTests}
-                disabled={!isReady || isRunning || !me?.isAlive}
-              >
-                {!me?.isAlive
-                  ? "SPECTATING"
-                  : !isReady
-                    ? "INSTALLING DEPS..."
-                    : isRunning
-                      ? "PUSHING..."
-                      : isImpostor
-                        ? "git push origin main --force"
-                        : "DEPLOY TO PROD"}
-              </button>
-              {me?.isAlive && editorIsEmpty && (
+              {status === "failed" && me?.isAlive ? (
                 <button
                   type="button"
-                  className="pixel-btn-ghost py-1.5 px-3 text-xs text-warning border-warning animate-pulse"
-                  onClick={handleGitPull}
-                  disabled={isPulling || !code}
-                  title="Your editor is empty. Pull the latest code from the host."
+                  className="pixel-btn-ghost py-1.5 px-3 text-xs text-warning border-warning"
+                  onClick={retry}
                 >
-                  {isPulling ? "PULLING..." : "git pull origin main"}
+                  npm install FAILED (RETRY)
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="pixel-btn-secondary py-1.5 px-3 text-xs"
+                  onClick={handleRunTests}
+                  disabled={!isReady || isRunning || !me?.isAlive}
+                >
+                  {!me?.isAlive
+                    ? "SPECTATING"
+                    : !isReady
+                      ? "INSTALLING DEPS..."
+                      : isRunning
+                        ? "PUSHING..."
+                        : isImpostor
+                          ? "git push origin main --force"
+                          : "DEPLOY TO PROD"}
                 </button>
               )}
             </div>
@@ -401,7 +311,7 @@ export default function GameScreen() {
                 type="button"
                 className="pixel-btn-danger disabled:opacity-50"
                 onClick={callEmergencyMeeting}
-                disabled={!me?.isAlive}
+                disabled={!me?.isAlive || emergencyMeetingCalled}
               >
                 INCIDENT
               </button>
@@ -415,7 +325,7 @@ export default function GameScreen() {
               />
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              TIME: {roundTimeRemaining}s
+              TIME: {secondsLeft}s
             </p>
           </div>
 
@@ -449,8 +359,8 @@ export default function GameScreen() {
           </div>
         </section>
 
-        {/* RIGHT COLUMN: CHAT */}
-        <aside className="hidden xl:flex flex-col order-3 h-full max-h-[700px]">
+        {/* RIGHT COLUMN: CHAT (below the game on smaller screens) */}
+        <aside className="flex flex-col order-3 h-[400px] lg:col-span-2 xl:col-span-1 xl:h-full xl:max-h-[700px]">
           <ChatPanel />
         </aside>
       </div>
